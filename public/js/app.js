@@ -544,25 +544,50 @@ function renderLists() {
   );
 }
 
-// --- likes & leaderboard --------------------------------------------------------------------
+// --- likes, hearts & hype trains (TikTok LIVE style) ---------------------------------------
+// Tap as much as you like. Taps are batched to the server; every listener sees
+// everyone's hearts, and when a song's like goal is reached during its play,
+// everyone gets a hype train at the same moment.
 const HEART_PATH = 'M12 20.5s-7.5-4.6-9.3-9.4C1.6 8.2 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 5.4 3.7 4.3 6.6-1.8 4.8-9.3 9.4-9.3 9.4z';
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const myLikes = new Set();
-// After a like, show the server's answer until the next live update catches up.
-const pendingCounts = new Map(); // trackId -> { count, until }
+const HEART_COLORS = ['#ff4d7d', '#ff2d6a', '#ff7a45', '#ffb340', '#ffd23f', '#c86bff', '#ff5ec4', '#5fd4ff'];
+const MAX_HEARTS = 90; // cap on-screen hearts so spam never bogs the page down
+
+// Counts only ever go up, so the display keeps the highest value seen:
+// optimistic taps + server totals never make the number jump backwards.
+const totals = new Map(); // trackId -> all-time likes
+const plays = new Map(); // playId -> { count, level, goal, prevGoal }
+const tapQueue = new Map(); // "trackId|playId" -> { trackId, playId, taps }
+let tapTimer = null;
+let ownEcho = 0; // our taps that will come back in the shared 'likes' stream
 let leaderKey = '';
+let heartsOnScreen = 0;
 
-fetch('/api/likes/mine', { credentials: 'same-origin' })
-  .then((r) => r.json())
-  .then((d) => {
-    for (const id of d.liked || []) myLikes.add(id);
-    leaderKey = '';
-  })
-  .catch(() => {});
+const totalFor = (tr) => Math.max(totals.get(tr.id) || 0, tr.likes || 0);
+function playFor(tr) {
+  if (!tr?.playId) return null;
+  const a = plays.get(tr.playId);
+  const b = tr.hype;
+  if (!a) return b || null;
+  if (!b) return a;
+  return a.count >= b.count ? a : b;
+}
+function bumpTotal(trackId, value) {
+  totals.set(trackId, Math.max(totals.get(trackId) || 0, value));
+}
+function bumpPlay(playId, info) {
+  if (!playId || !info) return;
+  const cur = plays.get(playId);
+  if (!cur || info.count >= cur.count || info.level > cur.level) plays.set(playId, info);
+}
 
-function likeCount(tr) {
-  const p = pendingCounts.get(tr.id);
-  return p && p.until > Date.now() ? p.count : tr.likes || 0;
+/** Server state carries counts too; fold them in. */
+function absorbLikeState(st) {
+  for (const t of [st.now, st.next, ...(st.history || []), ...(st.leaderboard || [])]) {
+    if (!t) continue;
+    bumpTotal(t.id, t.likes || 0);
+    if (t.playId && t.hype) bumpPlay(t.playId, t.hype);
+  }
 }
 
 function heartSvg(cls) {
@@ -576,115 +601,244 @@ function heartSvg(cls) {
   return svg;
 }
 
-function renderLike(tr) {
-  const btn = $('likeBtn');
-  btn.disabled = !tr;
-  const liked = Boolean(tr && myLikes.has(tr.id));
-  btn.setAttribute('aria-pressed', String(liked));
-  btn.setAttribute('aria-label', tr ? `${liked ? 'Unlike' : 'Like'} ${tr.title}` : 'Like this song');
-  $('likeCount').textContent = String(tr ? likeCount(tr) : 0);
+/** One heart floating up from (x, y). */
+function floatHeart(x, y, { rise = -(160 + Math.random() * 140), size = 18 + Math.random() * 16, dur = 1.4 + Math.random() * 0.9, parent = document.body } = {}) {
+  if (reducedMotion || heartsOnScreen >= MAX_HEARTS) return;
+  heartsOnScreen++;
+  const h = heartSvg('float-heart');
+  h.style.left = `${x}px`;
+  h.style.top = `${y}px`;
+  h.style.setProperty('--size', `${size.toFixed(0)}px`);
+  h.style.setProperty('--c', HEART_COLORS[(Math.random() * HEART_COLORS.length) | 0]);
+  h.style.setProperty('--rise', `${rise.toFixed(0)}px`);
+  h.style.setProperty('--sway', `${((Math.random() - 0.5) * 70).toFixed(0)}px`);
+  h.style.setProperty('--rot', `${((Math.random() - 0.5) * 50).toFixed(0)}deg`);
+  h.style.setProperty('--dur', `${dur.toFixed(2)}s`);
+  parent.append(h);
+  setTimeout(() => {
+    h.remove();
+    heartsOnScreen--;
+  }, dur * 1000 + 100);
 }
 
-/** A little burst of hearts floating up from an element. */
-function tossHearts(fromEl, n = 7) {
-  if (reducedMotion) return;
-  const r = fromEl.getBoundingClientRect();
+function heartsFrom(el, n = 1) {
+  const r = el.getBoundingClientRect();
   for (let i = 0; i < n; i++) {
-    const h = heartSvg('toss-heart');
-    h.style.left = `${r.left + r.width / 2}px`;
-    h.style.top = `${r.top + r.height / 2}px`;
-    h.style.setProperty('--dx', `${(Math.random() - 0.5) * 150}px`);
-    h.style.setProperty('--dy', `${-(90 + Math.random() * 130)}px`);
-    h.style.setProperty('--s', (0.8 + Math.random() * 0.9).toFixed(2));
-    h.style.setProperty('--r', `${((Math.random() - 0.5) * 70).toFixed(0)}deg`);
-    h.style.animationDelay = `${i * 45}ms`;
-    document.body.append(h);
-    setTimeout(() => h.remove(), 1600);
+    setTimeout(() => floatHeart(r.left + r.width / 2 + (Math.random() - 0.5) * 16, r.top + r.height / 2), i * 60);
   }
 }
 
-async function toggleLike(id, baseCount) {
-  const wasLiked = myLikes.has(id);
-  // Optimistic: flip right away, then confirm with the server.
-  if (wasLiked) myLikes.delete(id);
-  else myLikes.add(id);
-  pendingCounts.set(id, { count: Math.max(0, baseCount + (wasLiked ? -1 : 1)), until: Date.now() + 3000 });
-  leaderKey = '';
-  renderLike(S.shown);
-  renderLeaderboard();
-  try {
-    const res = await fetch('/api/like', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' },
-      body: JSON.stringify({ trackId: id }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Could not save your like. Try again.');
-    if (data.liked) myLikes.add(id);
-    else myLikes.delete(id);
-    pendingCounts.set(id, { count: data.count, until: Date.now() + 2500 });
-  } catch (err) {
-    if (wasLiked) myLikes.add(id);
-    else myLikes.delete(id);
-    pendingCounts.delete(id);
-    toast(err.message);
+/** Everyone else's likes drift up the right edge, like a live stream. */
+function laneHearts(n) {
+  const count = Math.min(n, 14);
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const x = innerWidth - 50 - Math.random() * 70;
+      floatHeart(x, innerHeight - 110, { rise: -(innerHeight * (0.35 + Math.random() * 0.25)), parent: $('heartLane') });
+    }, i * (350 / count) + Math.random() * 60);
   }
-  leaderKey = '';
-  renderLike(S.shown);
-  renderLeaderboard();
 }
 
-/** Like/unlike from a button; liking also tosses hearts. */
-function likeFrom(btn, id) {
-  const tr = [S.shown, ...(S.server?.leaderboard || [])].find((t) => t?.id === id);
+function popLikeButton() {
+  const b = $('likeBtn');
+  b.classList.remove('pop');
+  void b.offsetWidth;
+  b.classList.add('pop');
+}
+
+/** Register one tap on a track (and its live play, if it's the one playing). */
+function tap(tr, { playId = tr?.playId || '' } = {}) {
   if (!tr) return;
-  const willLike = !myLikes.has(id);
-  toggleLike(id, likeCount(tr));
-  if (willLike) {
-    tossHearts(btn);
-    btn.classList.remove('pop');
-    void btn.offsetWidth;
-    btn.classList.add('pop');
-  }
+  const key = `${tr.id}|${playId}`;
+  const q = tapQueue.get(key) || { trackId: tr.id, playId, taps: 0 };
+  q.taps++;
+  tapQueue.set(key, q);
+  bumpTotal(tr.id, totalFor(tr) + 1);
+  const p = playId && playFor({ ...tr, playId });
+  if (p) bumpPlay(playId, { ...p, count: p.count + 1 });
+  if (!tapTimer) tapTimer = setTimeout(sendTaps, 300);
+  leaderKey = '';
+  renderLike(S.shown);
 }
-$('likeBtn').addEventListener('click', () => S.shown && likeFrom($('likeBtn'), S.shown.id));
 
-// Double-click / double-tap the cover to like (never un-likes, just more hearts).
+async function sendTaps() {
+  tapTimer = null;
+  const batches = [...tapQueue.values()];
+  tapQueue.clear();
+  for (const b of batches) {
+    ownEcho += b.taps;
+    try {
+      const res = await fetch('/api/like', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' },
+        body: JSON.stringify(b),
+      });
+      const d = await res.json();
+      const dropped = b.taps - (d.added ?? 0);
+      if (dropped > 0) {
+        // Over the speed limit: take the uncounted taps back off the display.
+        ownEcho = Math.max(0, ownEcho - dropped);
+        totals.set(b.trackId, Math.max(d.total ?? 0, (totals.get(b.trackId) || 0) - dropped));
+        const p = plays.get(b.playId);
+        if (p) plays.set(b.playId, { ...p, count: Math.max(0, p.count - dropped) });
+      } else if (d.total != null) {
+        bumpTotal(b.trackId, d.total);
+      }
+    } catch {
+      ownEcho = Math.max(0, ownEcho - b.taps);
+    }
+  }
+  leaderKey = '';
+  renderLike(S.shown);
+}
+
+function likeCurrent(fromEl) {
+  if (!S.shown) return;
+  tap(S.shown);
+  heartsFrom(fromEl || $('likeBtn'), 1 + (Math.random() < 0.35 ? 1 : 0));
+  popLikeButton();
+}
+
+// Hold the heart to keep liking; a quick tap likes once.
+let holdTimer = null;
+function stopHold() {
+  clearTimeout(holdTimer);
+  clearInterval(holdTimer);
+  holdTimer = null;
+  $('likeBtn').classList.remove('holding');
+}
+$('likeBtn').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !S.shown) return;
+  e.preventDefault();
+  likeCurrent();
+  stopHold();
+  holdTimer = setTimeout(() => {
+    $('likeBtn').classList.add('holding');
+    holdTimer = setInterval(() => likeCurrent(), 110);
+  }, 350);
+});
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $('likeBtn').addEventListener(ev, stopHold);
+// Keyboard Enter/Space on the button (pointer clicks are handled by pointerdown).
+$('likeBtn').addEventListener('click', (e) => e.detail === 0 && likeCurrent());
+
+// Tap the cover twice quickly to like; keep tapping fast to keep liking.
 let lastArtTap = 0;
 $('art').addEventListener('pointerup', (e) => {
   const now = performance.now();
-  if (now - lastArtTap < 320 && S.shown) {
-    lastArtTap = 0;
-    if (!myLikes.has(S.shown.id)) toggleLike(S.shown.id, likeCount(S.shown));
-    const burst = { getBoundingClientRect: () => ({ left: e.clientX, top: e.clientY, width: 0, height: 0 }) };
-    tossHearts(burst, 10);
-    $('likeBtn').classList.remove('pop');
-    void $('likeBtn').offsetWidth;
-    $('likeBtn').classList.add('pop');
-  } else {
-    lastArtTap = now;
+  if (now - lastArtTap < 340 && S.shown) {
+    tap(S.shown);
+    floatHeart(e.clientX, e.clientY, { size: 30 + Math.random() * 20, rise: -(120 + Math.random() * 80) });
+    popLikeButton();
   }
+  lastArtTap = now;
 });
 
+function renderLike(tr) {
+  const btn = $('likeBtn');
+  btn.disabled = !tr;
+  $('likeCount').textContent = tr ? totalFor(tr).toLocaleString() : '0';
+  btn.setAttribute('aria-label', tr ? `Like ${tr.title} (${totalFor(tr)} likes)` : 'Like this song');
+
+  const p = playFor(tr);
+  $('hypeGoal').hidden = !p;
+  if (!p) return;
+  const span = Math.max(1, p.goal - p.prevGoal);
+  const pct = Math.min(100, Math.max(0, ((p.count - p.prevGoal) / span) * 100));
+  $('hypeFill').style.width = `${pct}%`;
+  $('hypeNums').textContent = `${p.count.toLocaleString()} / ${p.goal.toLocaleString()}`;
+  $('hypeLevel').textContent = p.level ? `Hype train Lv ${p.level}` : 'Like goal';
+  $('hypeLevel').classList.toggle('on', p.level > 0);
+  $('hypeGoal').classList.toggle('close', pct >= 80);
+}
+
+// --- the hype train ---------------------------------------------------------------------------
+const hypeQueue = [];
+let hypeRunning = false;
+
+function onHype(h) {
+  // Celebrate goals on the song this listener is hearing (or the one just starting).
+  if (h.playId !== S.shown?.playId && h.playId !== S.server?.now?.playId) return;
+  hypeQueue.push(h);
+  if (!hypeRunning) nextHype();
+}
+
+function nextHype() {
+  const h = hypeQueue.shift();
+  if (!h) {
+    hypeRunning = false;
+    return;
+  }
+  hypeRunning = true;
+  runHypeTrain(h);
+  setTimeout(nextHype, reducedMotion ? 1500 : 2600);
+}
+
+function runHypeTrain(h) {
+  const stage = $('hypeStage');
+  $('hypeAnnounce').textContent = `Hype train level ${h.level}! ${h.goal} likes on ${h.title}.`;
+  const ride = Math.max(3.4, 4.6 - h.level * 0.15); // higher levels ride faster
+  const y = `${22 + Math.random() * 12}%`;
+
+  const flash = el('div', { class: 'hype-flash' });
+  const burst = el('div', { class: 'hype-level-burst', text: `LV ${h.level}` });
+  const trail = el('div', { class: 'hype-trail' });
+  trail.style.setProperty('--y', y);
+  trail.style.setProperty('--ride', `${ride}s`);
+
+  const heartIcon = () => heartSvg();
+  const cars = [
+    el('div', { class: 'hype-car loco' }, [heartIcon(), el('span', { text: 'Hype train' })]),
+    el('div', { class: 'hype-car' }, [el('small', { text: 'Level' }), el('span', { text: String(h.level) })]),
+    el('div', { class: 'hype-car' }, [heartIcon(), el('span', { text: h.goal.toLocaleString() }), el('small', { text: 'likes' })]),
+    el('div', { class: 'hype-car title' }, el('span', { text: h.artist ? `${h.title} · ${h.artist}` : h.title })),
+  ];
+  // Bigger trains for bigger levels.
+  for (let i = 0; i < Math.min(4, h.level - 1); i++) cars.push(el('div', { class: 'hype-car' }, heartIcon()));
+  const train = el('div', { class: 'hype-train' }, cars.reverse()); // engine leads on the right
+  train.style.setProperty('--y', y);
+  train.style.setProperty('--ride', `${ride}s`);
+
+  stage.append(flash, trail, train, burst);
+  setTimeout(() => [flash, trail, train, burst].forEach((n) => n.remove()), ride * 1000 + 200);
+
+  viz.hype(ride - 0.6);
+  $('hypeGoal').classList.remove('close');
+  // Heart rain rising across the whole screen.
+  const rain = Math.min(60, 26 + h.level * 6);
+  for (let i = 0; i < rain; i++) {
+    setTimeout(() => floatHeart(Math.random() * innerWidth, innerHeight + 20, {
+      rise: -(innerHeight * (0.6 + Math.random() * 0.5)),
+      size: 16 + Math.random() * 26,
+      dur: 1.8 + Math.random() * 1.2,
+      parent: stage,
+    }), Math.random() * 1400);
+  }
+}
+
+// --- leaderboard ----------------------------------------------------------------------------
 function renderLeaderboard() {
-  const list = S.server?.leaderboard || [];
-  const key = JSON.stringify(list.map((t) => [t.id, likeCount(t), myLikes.has(t.id), t.cover, t.title, t.artist])) + (S.shown?.id || '');
+  const list = [...(S.server?.leaderboard || [])].sort((a, b) => totalFor(b) - totalFor(a));
+  const key = JSON.stringify(list.map((t) => [t.id, totalFor(t), t.cover, t.title, t.artist])) + (S.shown?.id || '');
   if (key === leaderKey) return;
   leaderKey = key;
   if (!list.length) {
-    $('leaderboard').replaceChildren(el('p', { class: 'empty-note', text: "No likes yet. Tap the heart on a song you love and it'll show up here." }));
+    $('leaderboard').replaceChildren(el('p', { class: 'empty-note', text: "No likes yet. Spam the heart on a song you love and it'll show up here." }));
     return;
   }
   $('leaderboard').replaceChildren(
     ...list.map((t, i) => {
-      const liked = myLikes.has(t.id);
-      const btn = el('button', {
-        class: 'mini-like',
-        'aria-pressed': String(liked),
-        'aria-label': `${liked ? 'Unlike' : 'Like'} ${t.title}, ${likeCount(t)} likes`,
-      }, [heartSvg(), el('span', { text: String(likeCount(t)) })]);
-      btn.addEventListener('click', () => likeFrom(btn, t.id));
+      const btn = el('button', { class: 'mini-like', 'aria-label': `Like ${t.title}, ${totalFor(t)} likes` }, [
+        heartSvg(),
+        el('span', { text: totalFor(t).toLocaleString() }),
+      ]);
+      btn.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        // The song on air also feeds its live like goal.
+        const live = S.shown?.id === t.id ? S.shown : t;
+        tap(live, { playId: live.playId || '' });
+        heartsFrom(btn, 1);
+      });
       const onAir = S.shown?.id === t.id;
       return el('div', { class: `track-row${onAir ? ' on-air' : ''}` }, [
         el('span', { class: 'rank', text: String(i + 1) }),
@@ -827,11 +981,28 @@ function connectEvents() {
     const st = JSON.parse(e.data);
     addClockSample(st.serverTime);
     S.server = st;
+    absorbLikeState(st);
     applySettings(st.settings);
     $('listenerCount').textContent = st.listeners;
     tick();
   });
   es.addEventListener('time', (e) => addClockSample(Number(e.data)));
+  // Live like stream: counts, goal progress, and hearts from everyone else.
+  es.addEventListener('likes', (e) => {
+    let others = 0;
+    for (const item of JSON.parse(e.data)) {
+      bumpTotal(item.trackId, item.total);
+      if (item.playId && item.play) bumpPlay(item.playId, item.play);
+      // Our own taps come back in this stream too; only show other people's.
+      const mine = Math.min(ownEcho, item.delta);
+      ownEcho -= mine;
+      others += item.delta - mine;
+    }
+    if (others > 0) laneHearts(others);
+    leaderKey = '';
+    renderLike(S.shown);
+  });
+  es.addEventListener('hype', (e) => onHype(JSON.parse(e.data)));
   // EventSource reconnects by itself; we only track whether it's connected.
   es.addEventListener('open', () => (S.eventsOnline = true));
   es.addEventListener('error', () => (S.eventsOnline = es.readyState === EventSource.OPEN));
@@ -879,6 +1050,7 @@ addEventListener('keydown', (e) => {
     else S.want ? stopListening() : startListening();
   } else if (e.key === 'f') toggleFullscreen();
   else if (e.key === 'm') toggleMute();
-  else if (e.key === 'l' && S.shown) likeFrom($('likeBtn'), S.shown.id);
+  // Holding L auto-repeats, which spams likes, which is the point.
+  else if (e.key === 'l') likeCurrent();
   else if (e.key === 'Escape') toggleDrawer(false);
 });

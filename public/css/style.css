@@ -232,26 +232,126 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
   transition: background 0.2s, border-color 0.2s, transform 0.15s;
 }
-.like-btn:hover { background: var(--glass-strong); }
-.like-btn:active { transform: scale(0.94); }
-.like-btn svg { width: 20px; height: 20px; transition: transform 0.25s cubic-bezier(.3, 1.6, .5, 1), fill 0.2s, color 0.2s; }
-.like-btn[aria-pressed='true'] { border-color: rgba(255, 77, 125, 0.5); background: rgba(255, 77, 125, 0.14); }
-.like-btn[aria-pressed='true'] svg { fill: var(--heart); color: var(--heart); }
-.like-btn.pop svg { animation: heartPop 0.45s cubic-bezier(.3, 1.6, .5, 1); }
+.like-btn { user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.like-btn:hover { background: var(--glass-strong); border-color: rgba(255, 77, 125, 0.4); }
+.like-btn svg { width: 20px; height: 20px; fill: var(--heart); color: var(--heart); }
+.like-btn.pop svg { animation: heartPop 0.28s cubic-bezier(.3, 1.6, .5, 1); }
+.like-btn.holding { background: rgba(255, 77, 125, 0.18); border-color: rgba(255, 77, 125, 0.55); }
 .like-btn:disabled { opacity: 0.5; cursor: default; }
-@keyframes heartPop { 40% { transform: scale(1.45); } }
+@keyframes heartPop { 45% { transform: scale(1.4); } }
 
-/* Hearts tossed into the air on a like */
-.toss-heart {
-  position: fixed; z-index: 9; pointer-events: none;
-  width: 18px; height: 18px; margin: -9px 0 0 -9px;
-  fill: #ff4d7d; stroke: none;
-  animation: toss 1.1s cubic-bezier(.2, .7, .3, 1) forwards;
+/* Like goal toward the next hype train (this play of the song) */
+.hype-goal { min-width: 150px; flex: 0 1 190px; }
+.hype-goal-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11.5px; margin-bottom: 5px; }
+.hype-level { color: var(--muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.hype-level.on { color: #ffd23f; }
+.hype-goal-top b { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg); }
+.hype-bar { height: 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.hype-bar i {
+  display: block; height: 100%; width: 0; border-radius: inherit;
+  background: linear-gradient(90deg, #ff4d7d, #ffb340);
+  box-shadow: 0 0 10px rgba(255, 77, 125, 0.8);
+  transition: width 0.3s ease-out;
 }
-@keyframes toss {
-  0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0deg); }
-  15% { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(var(--s)) rotate(var(--r)); }
+.hype-goal.close .hype-bar i { animation: goalPulse 0.8s ease-in-out infinite; }
+@keyframes goalPulse { 50% { filter: brightness(1.5); } }
+
+/* Floating hearts: yours rise from the button, everyone else's up the right edge */
+.float-heart {
+  position: fixed; z-index: 9; pointer-events: none;
+  width: var(--size, 22px); height: var(--size, 22px); margin: calc(var(--size, 22px) / -2) 0 0 calc(var(--size, 22px) / -2);
+  fill: var(--c, #ff4d7d); stroke: none;
+  filter: drop-shadow(0 0 6px var(--c, #ff4d7d));
+  animation: floatUp var(--dur, 1.6s) cubic-bezier(.25, .6, .35, 1) forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  12% { opacity: 1; transform: translate(calc(var(--sway) * -0.4), -14px) scale(1.1); }
+  45% { transform: translate(var(--sway), calc(var(--rise) * 0.45)) scale(1); }
+  75% { transform: translate(calc(var(--sway) * -0.6), calc(var(--rise) * 0.75)) scale(0.95); opacity: 0.9; }
+  100% { opacity: 0; transform: translate(calc(var(--sway) * 0.3), var(--rise)) scale(0.8) rotate(var(--rot, 0deg)); }
+}
+.heart-lane { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+
+/* ---------- hype train ---------- */
+.hype-stage { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
+.hype-flash {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 77, 125, 0.35), rgba(255, 179, 64, 0.12) 45%, transparent 70%);
+  animation: hypeFlash 1.6s ease-out forwards;
+}
+@keyframes hypeFlash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+
+.hype-train {
+  position: absolute; left: 0; top: var(--y, 30%);
+  display: flex; align-items: center; gap: 10px;
+  white-space: nowrap;
+  animation: trainRide var(--ride, 4.2s) cubic-bezier(.45, .05, .45, .95) forwards;
+}
+@keyframes trainRide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(calc(100vw + 10%)); }
+}
+.hype-car {
+  display: flex; align-items: center; gap: 10px;
+  height: 64px; padding: 0 24px; border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 77, 125, 0.95), rgba(255, 140, 64, 0.95));
+  color: #fff; font-weight: 800; font-size: 22px; letter-spacing: 0.04em; text-transform: uppercase;
+  box-shadow: 0 0 40px rgba(255, 77, 125, 0.7), inset 0 -4px 0 rgba(0, 0, 0, 0.18);
+  animation: carBob 0.42s ease-in-out infinite alternate;
+  position: relative;
+}
+.hype-car:nth-child(2n) { animation-delay: 0.14s; }
+.hype-car:nth-child(3n) { animation-delay: 0.28s; }
+.hype-car svg { width: 30px; height: 30px; fill: #fff; stroke: none; flex: none; }
+.hype-car small { font-size: 13px; font-weight: 700; opacity: 0.85; letter-spacing: 0.08em; }
+.hype-car.loco {
+  background: linear-gradient(135deg, #ffd23f, #ff8a3d);
+  color: #2b1300; padding: 0 28px 0 22px; border-radius: 18px 34px 34px 18px;
+  box-shadow: 0 0 50px rgba(255, 210, 63, 0.8), inset 0 -4px 0 rgba(0, 0, 0, 0.15);
+}
+.hype-car.loco svg { fill: #ff2d6a; }
+.hype-car.title { background: rgba(20, 16, 30, 0.88); border: 2px solid rgba(255, 77, 125, 0.7); max-width: 60vw; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; }
+/* Little coupling links between cars */
+.hype-car + .hype-car::before {
+  content: ''; position: absolute; left: -10px; top: 50%; width: 10px; height: 4px; margin-top: -2px;
+  background: rgba(255, 255, 255, 0.6); border-radius: 2px;
+}
+@keyframes carBob { from { transform: translateY(-3px) rotate(-0.6deg); } to { transform: translateY(3px) rotate(0.6deg); } }
+
+/* The streak of light the train leaves behind */
+.hype-trail {
+  position: absolute; left: 0; right: 0; top: var(--y, 30%); height: 64px;
+  background: linear-gradient(90deg, transparent, rgba(255, 77, 125, 0.45), rgba(255, 210, 63, 0.5), transparent);
+  filter: blur(18px);
+  transform-origin: left center;
+  animation: trail var(--ride, 4.2s) cubic-bezier(.45, .05, .45, .95) forwards;
+}
+@keyframes trail { 0% { transform: scaleX(0); opacity: 0.9; } 70% { opacity: 0.8; } 100% { transform: scaleX(1); opacity: 0; } }
+
+.hype-level-burst {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-weight: 900; font-size: clamp(56px, 12vw, 160px); line-height: 1; letter-spacing: -0.03em;
+  color: transparent; -webkit-text-stroke: 2px rgba(255, 210, 63, 0.9);
+  text-shadow: 0 0 40px rgba(255, 77, 125, 0.6);
+  animation: levelBurst 1.8s cubic-bezier(.2, .8, .2, 1) forwards;
+  white-space: nowrap;
+}
+@keyframes levelBurst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  70% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
+}
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .hype-car { height: 48px; padding: 0 16px; font-size: 16px; border-radius: 14px; }
+  .hype-car svg { width: 22px; height: 22px; }
+  .hype-trail { height: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hype-train, .hype-trail, .float-heart { display: none; }
 }
 .link-chip {
   display: inline-flex; align-items: center; gap: 8px;
@@ -391,9 +491,9 @@ body.vol-low .vol-w2 { display: none; }
   height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--stroke);
   background: none; color: var(--muted); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.mini-like svg { width: 14px; height: 14px; }
-.mini-like[aria-pressed='true'] { color: #ff4d7d; border-color: rgba(255, 77, 125, 0.45); }
-.mini-like[aria-pressed='true'] svg { fill: #ff4d7d; }
+.mini-like { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.mini-like svg { width: 14px; height: 14px; fill: #ff4d7d; stroke: none; }
+.mini-like:hover { color: var(--fg); border-color: rgba(255, 77, 125, 0.45); }
 .on-air-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: #ff4d7d; vertical-align: middle; }
 
 .drawer-socials { flex-wrap: wrap; gap: 8px; padding: 0 4px; }

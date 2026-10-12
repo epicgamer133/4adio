@@ -142,19 +142,27 @@ Same honest limit as the audio: a screenshot always works. What's blocked:
   browsers answering "open in new tab" from the cached copy the page loaded.
 - Artwork URLs use random ids, so they can't be guessed. Owner's request, 2026-10-12.
 
-### Decision 12: likes and a "Most liked" leaderboard
-No accounts. Each browser gets an anonymous, HttpOnly `rs_lid` cookie, and a listener can like each
-song once; clicking again removes the like. Likes go to the song the listener is *hearing* (the
-latency-adjusted track), not the server's newest one. Ways to like: the heart beside the song info,
-double-click/double-tap the cover, or the `L` key. Liking tosses a burst of floating hearts.
-- Stored in `data/likes.json` as salted hashes only (`data/likes.salt`); no raw ids or IPs are kept.
-- Anti-farming: at most **3 likes per song per IP** (a household) and 40 like-clicks per minute per IP.
-  `POST /api/like` requires the `X-Requested-With: radio` header, so other sites can't post likes.
-- **Deployment gotcha:** the per-IP cap needs the real visitor IP, so `TRUST_PROXY` must match your
-  reverse proxy (the default `loopback` is right for nginx/Apache on the same machine; Docker uses
-  `loopback,uniquelocal`). If it's wrong, every listener shares one IP and each song caps at 3 likes.
-- The leaderboard (top 10, live) is in the side panel's "Most liked" tab; the dock's trophy button
-  opens it. Admin → Library shows a Likes column. Owner's request, 2026-10-12.
+### Decision 12: TikTok LIVE style likes, like goals and hype trains
+(Replaced the first "one heart per listener" version the same day, at the owner's request.)
+- **Tap as much as you want.** Every tap is a like, and there's no un-like. Hold the heart to auto-repeat,
+  tap the cover twice quickly (and keep tapping), or hold `L`. Each tap floats a randomly colored
+  heart up from where you tapped. Everyone sees everyone else's taps as hearts drifting up the right edge
+  (`likes` SSE event, batched about 3 times a second; the page subtracts its own taps so it only shows others').
+- **Like goals per play:** each time a song starts, its goals reset: 20, 50, 100, 200, 400, 700, 1000,
+  then about 1.5x each. A goal bar under the heart shows progress. Reaching a goal fires a `hype` SSE
+  event to everyone at once: a "HYPE TRAIN" of cars sweeps across the screen (longer trains at higher
+  levels), with a "LV n" burst, a heart rain, a pink flash, and Warp at hyperspeed with pink/gold streaks.
+  Several levels at once play back to back. Reduced-motion users get the announcement without the motion.
+- **Totals** (all time, per song) drive the "Most liked" leaderboard, which you can also tap-spam from.
+- **Abuse control is a speed limit, not a cap:** token buckets per listener (anonymous HttpOnly `rs_lid`
+  cookie: ~12 taps/s, bursts to 40) and per network (IP: ~36/s, bursts to 120). Fast human tapping always
+  counts, and a script can't inflate counts beyond that pace (tested: 360 instant taps, 41 counted).
+  `POST /api/like` takes batches `{trackId, playId, taps}` and requires `X-Requested-With: radio`.
+- Stored in `data/likes.json` as `{ totals: { trackId: n } }`. Per-play goal progress lives in memory only.
+- **Deployment gotcha:** the per-network limit needs the real visitor IP, so `TRUST_PROXY` must match your
+  reverse proxy (`loopback` for nginx/Apache on the same machine; Docker uses `loopback,uniquelocal`).
+  If it's wrong, all listeners share one bucket and likes are capped at ~36/s station-wide.
+- Goal numbers are `HYPE_GOALS` in `server/likes.js`; tune them to the audience size.
 
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.

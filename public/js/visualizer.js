@@ -34,6 +34,8 @@ export class Visualizer {
     this.stars = [];
     this.peaks = new Float32Array(128);
     this.t = 0;
+    this.boost = 0; // 0..1, hyperspeed during a hype train
+    this.boostUntil = 0;
     this.onLevels = null;
     this.resize = this.resize.bind(this);
     addEventListener('resize', this.resize);
@@ -56,6 +58,11 @@ export class Visualizer {
     this.particles = [];
     this.stars = [];
     this.ctx.clearRect(0, 0, this.w, this.h);
+  }
+
+  /** Kick into hyperspeed for a few seconds (hype train). */
+  hype(seconds = 3.5) {
+    this.boostUntil = Math.max(this.boostUntil, this.t + seconds);
   }
 
   setFocus(x, y, r) {
@@ -125,6 +132,9 @@ export class Visualizer {
     L.beat *= Math.pow(0.02, dt); // fast decay
 
     for (let i = 0; i < 3; i++) this.colors[i] = mix(this.colors[i], this.target[i], Math.min(1, dt * 1.2));
+    // Ease in fast, ease out slowly.
+    const want = this.t < this.boostUntil ? 1 : 0;
+    this.boost += (want - this.boost) * Math.min(1, dt * (want ? 4 : 1.2));
     this.onLevels?.(L);
   }
 
@@ -315,7 +325,7 @@ export class Visualizer {
     while (this.stars.length < count) {
       this.stars.push({ x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: Math.random() * 1 + 0.05, c: (Math.random() * 3) | 0 });
     }
-    const speed = 0.12 + energy * 1.4 + beat * 1.2;
+    const speed = 0.12 + energy * 1.4 + beat * 1.2 + this.boost * 3.2;
     const fov = Math.max(w, h) * 0.5;
     const { x: cx, y: cy } = this.focus;
     ctx.lineCap = 'round';
@@ -333,8 +343,10 @@ export class Visualizer {
       }
       // Tinted toward white so streaks stay visible over a custom background,
       // even one that shares the cover's colors.
-      ctx.strokeStyle = rgba(mix(this.colors[s.c], [255, 255, 255], 0.45), (1.05 - s.z) * 0.95);
-      ctx.lineWidth = (1.05 - s.z) * 3;
+      // During a hype train, streaks turn hot pink/gold.
+      const base = this.boost > 0.01 ? mix(this.colors[s.c], s.c % 2 ? [255, 77, 125] : [255, 210, 63], this.boost) : this.colors[s.c];
+      ctx.strokeStyle = rgba(mix(base, [255, 255, 255], 0.45), (1.05 - s.z) * 0.95);
+      ctx.lineWidth = (1.05 - s.z) * (3 + this.boost * 2);
       ctx.beginPath();
       ctx.moveTo(px, py);
       ctx.lineTo(nx, ny);

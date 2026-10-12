@@ -76,8 +76,8 @@ setInterval(() => {
 
 app.get('/api/state', (req, res) => res.json(station.publicState()));
 
-// --- likes ----------------------------------------------------------------------------
-// Anonymous per-browser id so a listener can like each song once. HttpOnly:
+// --- likes (TikTok LIVE style: tap as much as you like) ------------------------------
+// Anonymous per-browser id, used only for the tap speed limit. HttpOnly:
 // page scripts can't read or forge it.
 function listenerId(req, res) {
   const m = /(?:^|;\s*)rs_lid=([A-Za-z0-9_-]{16,64})/.exec(req.headers.cookie || '');
@@ -87,26 +87,40 @@ function listenerId(req, res) {
   return id;
 }
 
-app.get('/api/likes/mine', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ liked: likes.likedBy(listenerId(req, res)) });
-});
-
+/** Body: { trackId, playId, taps } - the page batches taps a few times a second. */
 app.post('/api/like', express.json({ limit: '2kb' }), (req, res) => {
   // Custom header = only our own page can send this (blocks cross-site form posts).
   if (req.get('X-Requested-With') !== 'radio') return res.status(403).json({ error: 'Forbidden' });
   const track = library.get(String(req.body?.trackId || ''));
   if (!track || track.status !== 'ready') return res.status(404).json({ error: 'Song not found.' });
-  const result = likes.toggle(track.id, listenerId(req, res), req.ip);
-  if (result.error) return res.status(429).json(result);
-  res.json(result);
+  res.json(likes.add({
+    trackId: track.id,
+    playId: String(req.body?.playId || ''),
+    taps: Number(req.body?.taps) || 1,
+    listenerId: listenerId(req, res),
+    ip: req.ip,
+  }));
 });
 
-// Push new counts and the leaderboard to everyone, batched.
-let likeTimer = null;
-likes.on('change', () => {
-  clearTimeout(likeTimer);
-  likeTimer = setTimeout(() => station.emitUpdate(), 300);
+function sendEvent(name, data) {
+  const msg = `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of sseClients) res.write(msg);
+}
+// Floating hearts for everyone, a few times a second.
+likes.on('batch', (batch) => sendEvent('likes', batch));
+// A like goal was reached: everyone gets the hype train at once.
+likes.on('hype', (hype) => {
+  const track = library.get(hype.trackId);
+  sendEvent('hype', { ...hype, title: track?.title || '', artist: track?.artist || '' });
+});
+// Leaderboard order changes slowly; refresh the full state at most every 3 s while likes flow.
+let leaderTimer = null;
+likes.on('batch', () => {
+  if (leaderTimer) return;
+  leaderTimer = setTimeout(() => {
+    leaderTimer = null;
+    station.emitUpdate();
+  }, 3000);
 });
 
 const SAFE_FILE = /^[a-z0-9]+\.(jpg|mp4)$/;

@@ -162,6 +162,7 @@ class Station extends EventEmitter {
         const frames = parseFrames(fs.readFileSync(path.join(paths.audio, track.audioFile)));
         if (!frames.length) throw new Error('no frames');
         this.current = { track, frames, index: 0, playId: newId(), startedAt: this.liveEdge() };
+        likes.startPlay(this.current.playId, track.id);
         library.markPlayed(id);
         break;
       } catch (err) {
@@ -252,12 +253,12 @@ class Station extends EventEmitter {
     return {
       serverTime: Date.now(),
       burstSeconds: BURST_SECONDS,
-      now: cur ? shown(cur.track, { playId: cur.playId, startedAt: cur.startedAt }) : null,
+      now: cur ? shown(cur.track, { playId: cur.playId, startedAt: cur.startedAt, hype: likes.playInfo(cur.playId) }) : null,
       next: nextId && nextId !== cur?.track.id ? shown(library.get(nextId)) : null,
       history: this.history
         .map((h) => {
           const t = library.get(h.id);
-          return t ? shown(t, { playId: h.playId, startedAt: h.startedAt }) : null;
+          return t ? shown(t, { playId: h.playId, startedAt: h.startedAt, hype: likes.playInfo(h.playId) }) : null;
         })
         .filter(Boolean),
       leaderboard: likes
