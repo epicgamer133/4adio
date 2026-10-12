@@ -144,6 +144,47 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   touch-action: none;
   --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50%; --lift: 0;
 }
+/* Floating while music plays. --float (0..1) scales the motion, so starting
+   and stopping eases in and out instead of snapping (needs @property;
+   browsers without it just switch). */
+@property --float { syntax: '<number>'; inherits: true; initial-value: 0; }
+.art-float {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  --float: 0;
+  transition: --float 1.4s ease-in-out;
+  animation: artFloat 7.5s ease-in-out infinite;
+}
+body.playing .art-float { --float: 1; }
+/* Under your pointer, the float calms down so the tilt is in charge. */
+body.playing .art.tilting .art-float { --float: 0.25; }
+@keyframes artFloat {
+  0%, 100% { transform: translateY(0) rotateX(calc(var(--float) * 2deg)) rotateY(calc(var(--float) * -3deg)) rotateZ(0deg); }
+  25% { transform: translateY(calc(var(--float) * -9px)) rotateX(calc(var(--float) * -1.5deg)) rotateY(calc(var(--float) * 2.5deg)) rotateZ(calc(var(--float) * 0.6deg)); }
+  50% { transform: translateY(calc(var(--float) * -15px)) rotateX(calc(var(--float) * -3deg)) rotateY(calc(var(--float) * 4deg)) rotateZ(calc(var(--float) * -0.4deg)); }
+  75% { transform: translateY(calc(var(--float) * -7px)) rotateX(calc(var(--float) * 1deg)) rotateY(calc(var(--float) * -1.5deg)) rotateZ(calc(var(--float) * 0.3deg)); }
+}
+/* Soft shadow on the "ground": smaller and fainter as the cover rises. */
+.art-ground {
+  position: absolute; left: 12%; right: 12%; bottom: -34px; height: 26px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55), transparent 70%);
+  filter: blur(6px);
+  opacity: calc(var(--float-shadow, 0) * 1);
+  transition: opacity 1.4s ease-in-out;
+  animation: groundFloat 7.5s ease-in-out infinite;
+  pointer-events: none;
+}
+body.playing .art-ground { --float-shadow: 1; }
+@keyframes groundFloat {
+  0%, 100% { transform: scaleX(1); }
+  25% { transform: scaleX(0.9); }
+  50% { transform: scaleX(0.8); }
+  75% { transform: scaleX(0.92); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .art-float, .art-ground { animation: none; }
+}
+
 .art-card {
   position: relative; width: 100%; height: 100%;
   border-radius: var(--radius);

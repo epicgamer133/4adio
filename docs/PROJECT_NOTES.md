@@ -112,6 +112,10 @@ That catches stalls and slow networks too. More than 3 s past normal shows a **J
 The cover tilts toward the mouse or finger (up to 16°) with a moving glossy reflection, a dark slab
 behind it for sleeve thickness, and a shadow that falls away from the raised edge. It eases back to
 flat when the pointer leaves, and is off for reduced-motion users. Owner's request, 2026-10-12.
+**Floating while playing:** a `.art-float` wrapper levitates the cover (a slow 7.5 s drift up and down plus a
+gentle 3D sway), with a ground shadow that shrinks as it rises. A registered CSS property `--float`
+(0..1) scales the motion, so it eases in on play and out on stop, and drops to 0.25 while the pointer
+tilts the cover. It sits on top of the beat pulse. Owner's request, 2026-10-12.
 
 ### Decision 9: albums group songs and share artwork
 Albums are stored next to tracks in `library.json` (`albums: [{id, title, artist, coverFile}]`, with
