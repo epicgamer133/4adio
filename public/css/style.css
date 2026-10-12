@@ -266,15 +266,64 @@ body.playing .art-ground { --float-shadow: 1; }
 .album { margin: 4px 0 0; font-size: 14px; color: var(--muted); min-height: 1em; }
 .meta .swap { animation: textIn 0.7s cubic-bezier(.2, .8, .2, 1) both; }
 
-.progress { margin-top: 26px; }
-.progress-bar { height: 4px; border-radius: 4px; background: var(--faint); overflow: hidden; }
-.progress-bar i {
-  display: block; height: 100%; width: 0;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: inherit;
-  box-shadow: 0 0 12px var(--accent);
+/* Progress: --p (0..1), --energy and --beat are written every frame by app.js. */
+.progress { --p: 0; --energy: 0; --beat: 0; margin-top: 26px; padding: 6px 0; }
+.progress-bar {
+  position: relative; height: 5px; border-radius: 6px;
+  background: var(--faint);
+  transition: height 0.25s cubic-bezier(.2, .8, .2, 1);
 }
-.progress-times { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress:hover .progress-bar { height: 8px; }
+.progress-bar i {
+  position: absolute; inset: 0 auto 0 0; display: block;
+  width: calc(var(--p) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent), var(--accent-2));
+  background-size: 300% 100%;
+  box-shadow: 0 0 calc(8px + var(--energy) * 18px) color-mix(in srgb, var(--accent) 80%, transparent);
+  overflow: hidden;
+}
+/* light sweep that runs along the filled part */
+.progress-bar i::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.55) 50%, transparent 70%);
+  background-size: 220px 100%; background-repeat: no-repeat;
+  background-position: -220px 0; opacity: 0;
+}
+body.playing .progress-bar i { animation: progressFlow 6s linear infinite; }
+body.playing .progress-bar i::after { opacity: 1; animation: progressSheen 2.8s ease-in-out infinite; }
+@keyframes progressFlow { to { background-position: 300% 0; } }
+@keyframes progressSheen { 0% { background-position: -220px 0; } 70%, 100% { background-position: calc(100% + 220px) 0; } }
+
+/* playhead: pulses with the beat, ripples while playing */
+.progress-head {
+  position: absolute; top: 50%; left: calc(var(--p) * 100%);
+  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 calc(10px + var(--energy) * 22px) var(--accent);
+  transform: scale(calc(0.85 + var(--beat) * 0.45));
+  opacity: 0; transition: opacity 0.3s;
+  pointer-events: none;
+}
+.progress-head::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 2px solid var(--accent); opacity: 0;
+}
+body.playing .progress-head { opacity: 1; }
+body.playing .progress-head::after { animation: headRipple 1.8s ease-out infinite; }
+@keyframes headRipple { from { transform: scale(1); opacity: 0.7; } to { transform: scale(2.6); opacity: 0; } }
+
+/* final 10 seconds: the bar breathes brighter */
+.progress.ending .progress-bar i { animation: progressFlow 2s linear infinite, endingGlow 0.9s ease-in-out infinite alternate; }
+@keyframes endingGlow { to { filter: brightness(1.35) saturate(1.2); } }
+
+/* new song: the bar flashes as it rewinds */
+.progress.restart .progress-bar { animation: barFlash 0.9s ease-out; }
+@keyframes barFlash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+
+.progress-times { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#elapsed { color: color-mix(in srgb, var(--fg) 75%, var(--muted)); }
+.progress-times .swap { animation: textIn 0.6s cubic-bezier(.2, .8, .2, 1) both; }
 
 .song-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
 .links { display: flex; flex-wrap: wrap; gap: 8px; }

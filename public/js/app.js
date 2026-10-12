@@ -1057,17 +1057,53 @@ function tick() {
   renderFavButton(tr);
   renderFavorites();
   renderSync();
-  if (tr) {
-    const elapsed = Math.min(tr.duration, Math.max(0, (serverNow() - S.lat * 1000 - tr.startedAt) / 1000));
-    $('progressFill').style.width = `${(elapsed / tr.duration) * 100}%`;
-    $('elapsed').textContent = fmt(elapsed);
-    $('duration').textContent = fmt(tr.duration);
-  } else {
-    $('progressFill').style.width = '0';
-    $('elapsed').textContent = $('duration').textContent = '0:00';
+  const total = tr ? fmt(tr.duration) : '0:00';
+  if ($('duration').textContent !== total) {
+    $('duration').textContent = total;
+    swapIn($('duration'));
   }
 }
 setInterval(tick, 250);
+
+// Progress bar runs every frame: the fill glides instead of stepping, rewinds with a flash on a
+// new song, and the playhead/glow follow the visualizer's beat and energy levels.
+const progress = { shown: 0, playId: null };
+function swapIn(node) {
+  node.classList.remove('swap');
+  void node.offsetWidth;
+  node.classList.add('swap');
+}
+function progressFrame() {
+  const tr = heardTrack();
+  const box = $('progress');
+  let target = 0;
+  let elapsed = 0;
+  if (tr) {
+    elapsed = Math.min(tr.duration, Math.max(0, (serverNow() - S.lat * 1000 - tr.startedAt) / 1000));
+    target = tr.duration ? elapsed / tr.duration : 0;
+  }
+  const id = tr ? tr.playId ?? tr.id : null;
+  if (id !== progress.playId) {
+    if (progress.playId !== null) {
+      box.classList.remove('restart');
+      void box.offsetWidth;
+      box.classList.add('restart');
+    }
+    progress.playId = id;
+  }
+  // Ease toward the target; rewinds (new song) ease fast, normal playback tracks almost exactly.
+  const diff = target - progress.shown;
+  progress.shown = reducedMotion || Math.abs(diff) < 0.0005 ? target : progress.shown + diff * (diff < 0 ? 0.12 : 0.25);
+  const L = viz.levels;
+  box.style.setProperty('--p', progress.shown.toFixed(5));
+  box.style.setProperty('--energy', (L.energy || 0).toFixed(3));
+  box.style.setProperty('--beat', (L.beat || 0).toFixed(3));
+  box.classList.toggle('ending', Boolean(tr) && tr.duration - elapsed < 10 && tr.duration > 20);
+  const text = fmt(elapsed);
+  if ($('elapsed').textContent !== text) $('elapsed').textContent = text;
+  requestAnimationFrame(progressFrame);
+}
+requestAnimationFrame(progressFrame);
 
 // --- station settings -------------------------------------------------------------------
 function renderSocials(container, socials) {
