@@ -73,10 +73,17 @@
   </div>
 
   <footer class="dock">
-    <label class="volume" title="Volume">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path class="vol-wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+    <div class="volume" id="volumeCtl">
+      <button class="icon-btn vol-btn" id="muteBtn" aria-label="Mute" title="Mute (M)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path class="vol-speaker" d="M4 9h3l5-4v14l-5-4H4z"/>
+          <path class="vol-w1" d="M15.5 9.5a3.5 3.5 0 0 1 0 5"/>
+          <path class="vol-w2" d="M18 7a7 7 0 0 1 0 10"/>
+          <path class="vol-x" d="M16 10l4 4M20 10l-4 4"/>
+        </svg>
+      </button>
       <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
-    </label>
+    </div>
 
     <button class="play-btn" id="playBtn" aria-label="Tune in">
       <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L8 4.64A1 1 0 0 0 6.5 5.5z"/></svg>

@@ -198,6 +198,30 @@ function applyVolume() {
     audio.volume = v * v;
   }
   body.classList.toggle('muted', v === 0);
+  body.classList.toggle('vol-low', v > 0 && v < 0.45);
+  const pct = Math.round(v * 100);
+  $('volumeCtl').style.setProperty('--vol', `${pct}%`);
+  $('volume').setAttribute('aria-valuetext', `${pct}%`);
+  $('volume').title = `Volume ${pct}%`;
+  $('muteBtn').setAttribute('aria-label', v === 0 ? 'Unmute' : 'Mute');
+}
+
+function setVolume(v) {
+  $('volume').value = String(Math.min(1, Math.max(0, Math.round(v * 100) / 100)));
+  applyVolume();
+  store.set('radio.volume', $('volume').value);
+}
+
+// Mute remembers the level it came from, so unmuting restores it.
+let volumeBeforeMute = 0.8;
+function toggleMute() {
+  const v = Number($('volume').value);
+  if (v > 0) {
+    volumeBeforeMute = v;
+    setVolume(0);
+  } else {
+    setVolume(volumeBeforeMute || 0.8);
+  }
 }
 
 function connectStream() {
@@ -274,6 +298,12 @@ $('volume').addEventListener('input', () => {
   applyVolume();
   store.set('radio.volume', $('volume').value);
 });
+$('muteBtn').addEventListener('click', toggleMute);
+// Scroll over the volume control to nudge it 5% at a time.
+$('volumeCtl').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  setVolume(Number($('volume').value) + (e.deltaY < 0 ? 0.05 : -0.05));
+}, { passive: false });
 applyVolume();
 
 if ('mediaSession' in navigator) {
@@ -658,5 +688,6 @@ addEventListener('keydown', (e) => {
     if (!$('tuneIn').classList.contains('gone')) startListening();
     else S.want ? stopListening() : startListening();
   } else if (e.key === 'f') toggleFullscreen();
+  else if (e.key === 'm') toggleMute();
   else if (e.key === 'Escape') toggleDrawer(false);
 });
