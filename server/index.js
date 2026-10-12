@@ -76,6 +76,22 @@ setInterval(() => {
 
 app.get('/api/state', (req, res) => res.json(station.publicState()));
 
+/**
+ * Public details for a list of songs (?ids=a,b,c). Used by listeners'
+ * favorites, which live only in their own browser. Only playable songs,
+ * and only what the page already shows: no file info.
+ */
+app.get('/api/tracks', (req, res) => {
+  const ids = String(req.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 300);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(
+    ids
+      .map((id) => library.get(id))
+      .filter((t) => t && t.status === 'ready')
+      .map((t) => ({ ...library.publicTrack(t), likes: likes.count(t.id) })),
+  );
+});
+
 // --- likes (TikTok LIVE style: tap as much as you like) ------------------------------
 // Anonymous per-browser id, used only for the tap speed limit. HttpOnly:
 // page scripts can't read or forge it.

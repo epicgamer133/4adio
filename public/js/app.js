@@ -437,8 +437,11 @@ function setPalette(pal) {
 
 function showTrack(tr) {
   const changedTrack = tr?.playId !== S.shown?.playId;
+  const firstShow = !S.shown;
   S.shown = tr;
   S.shownSig = sig(tr);
+  // Heads-up when one of your favorites comes on (not on first load).
+  if (changedTrack && !firstShow && tr && S.want && isFav(tr.id)) toast(`One of your favorites is on: ${tr.title}`, 3500);
   const stationName = S.settings?.stationName || 'Radio';
 
   if (!tr) {
@@ -514,11 +517,12 @@ function thumbEl(src) {
   return t;
 }
 
-function trackRow(tr, { featured = false, label = '' } = {}) {
+function trackRow(tr, { featured = false, label = '', tag = null } = {}) {
   return el('div', { class: `track-row${featured ? ' featured' : ''}` }, [
     thumbEl(tr.cover),
-    el('div', {}, [el('b', { text: tr.title }), el('span', { text: tr.artist || 'Unknown artist' })]),
+    el('div', {}, [el('b', { text: tr.title }, tag), el('span', { text: tr.artist || 'Unknown artist' })]),
     label ? el('time', { text: label }) : null,
+    starButton(tr),
   ]);
 }
 
@@ -534,13 +538,154 @@ function renderLists() {
   if (key === S.listKey) return;
   S.listKey = key;
 
-  $('upNext').replaceChildren(next ? trackRow(next, { featured: true }) : el('p', { class: 'empty-note', text: 'Shuffle picks the next song when this one ends.' }));
+  $('upNext').replaceChildren(
+    next
+      ? trackRow(next, { featured: true, tag: isFav(next.id) ? el('span', { class: 'up-tag', text: 'FAVORITE' }) : null })
+      : el('p', { class: 'empty-note', text: 'Shuffle picks the next song when this one ends.' }),
+  );
   $('history').replaceChildren(
     ...(history.length
       ? history.slice(0, 12).map((h) =>
           trackRow(h, { label: new Date(h.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }),
         )
       : [el('p', { class: 'empty-note', text: 'Nothing yet. You are early.' })]),
+  );
+}
+
+// --- favorites (private: saved in this browser only, never sent anywhere) --------------------
+const FAV_KEY = 'radio.favorites';
+const STAR_PATH = 'M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z';
+// A small snapshot is kept with each favorite so the list shows instantly
+// (and still makes sense if a song is later removed from the station).
+let favorites = loadFavorites(); // [{ id, savedAt, title, artist, cover, links }]
+const favGone = new Set(); // ids no longer on the station
+let favKey = '';
+
+function loadFavorites() {
+  try {
+    const v = JSON.parse(store.get(FAV_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((f) => f && typeof f.id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+const saveFavorites = () => store.set(FAV_KEY, JSON.stringify(favorites));
+const isFav = (id) => favorites.some((f) => f.id === id);
+
+function starSvg() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', STAR_PATH);
+  svg.append(p);
+  return svg;
+}
+
+function starButton(tr) {
+  const saved = isFav(tr.id);
+  const b = el('button', {
+    class: 'row-star',
+    'aria-pressed': String(saved),
+    'aria-label': saved ? `Remove ${tr.title} from favorites` : `Save ${tr.title} to favorites`,
+    title: saved ? 'Remove from favorites' : 'Save to favorites',
+  }, starSvg());
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFav(tr, b);
+  });
+  return b;
+}
+
+function popStar(btn) {
+  btn.classList.remove('pop');
+  void btn.offsetWidth;
+  btn.classList.add('pop');
+}
+
+function toggleFav(tr, fromBtn) {
+  if (!tr) return;
+  if (isFav(tr.id)) {
+    favorites = favorites.filter((f) => f.id !== tr.id);
+    toast('Removed from your favorites', 1400);
+  } else {
+    favorites.unshift({ id: tr.id, savedAt: Date.now(), title: tr.title, artist: tr.artist, cover: tr.cover, links: tr.links || {} });
+    favGone.delete(tr.id);
+    toast(`Saved "${tr.title}" to your favorites`, 1600);
+    if (fromBtn) popStar(fromBtn);
+  }
+  saveFavorites();
+  S.listKey = '';
+  leaderKey = '';
+  favKey = '';
+  renderFavButton(S.shown);
+  renderFavorites();
+}
+$('favBtn').addEventListener('click', () => toggleFav(S.shown, $('favBtn')));
+
+function renderFavButton(tr) {
+  const btn = $('favBtn');
+  const saved = Boolean(tr && isFav(tr.id));
+  btn.disabled = !tr;
+  btn.setAttribute('aria-pressed', String(saved));
+  btn.setAttribute('aria-label', saved ? 'Remove from favorites' : 'Save to favorites');
+  btn.title = saved ? 'In your favorites (S to remove)' : 'Save to your favorites (S)';
+}
+
+/** Refresh titles/artwork/links from the station (they may have been edited). */
+async function refreshFavorites() {
+  if (favorites.length) {
+    try {
+      const ids = favorites.map((f) => f.id).join(',');
+      const list = await (await fetch(`/api/tracks?ids=${encodeURIComponent(ids)}`)).json();
+      const found = new Map(list.map((t) => [t.id, t]));
+      for (const f of favorites) {
+        const t = found.get(f.id);
+        if (t) {
+          Object.assign(f, { title: t.title, artist: t.artist, cover: t.cover, links: t.links || {} });
+          favGone.delete(f.id);
+        } else {
+          favGone.add(f.id);
+        }
+      }
+      saveFavorites();
+    } catch {
+      /* offline: keep the saved snapshot */
+    }
+  }
+  favKey = '';
+  renderFavorites();
+}
+
+function renderFavorites() {
+  const nextId = S.server?.next?.id;
+  const key = JSON.stringify(favorites.map((f) => [f.id, f.title, f.artist, f.cover, favGone.has(f.id)])) + (S.shown?.id || '') + (nextId || '');
+  if (key === favKey) return;
+  favKey = key;
+  if (!favorites.length) {
+    $('favList').replaceChildren(el('p', { class: 'empty-note', text: 'Tap the star next to a song to save it here. Favorites stay on this device.' }));
+    return;
+  }
+  $('favList').replaceChildren(
+    ...favorites.map((f) => {
+      const gone = favGone.has(f.id);
+      const tag = gone ? null
+        : S.shown?.id === f.id ? el('span', { class: 'on-air-tag', text: 'ON AIR' })
+        : nextId === f.id ? el('span', { class: 'up-tag', text: 'UP NEXT' })
+        : null;
+      const links = Object.entries(f.links || {}).map(([k, url]) =>
+        el('a', { href: url, target: '_blank', rel: 'noopener noreferrer', title: `Listen on ${LINK_LABELS[k] || k}`, 'aria-label': `${f.title} on ${LINK_LABELS[k] || k}` }, brandIcon(k, LINK_LABELS[k] || k)),
+      );
+      return el('div', { class: `track-row${gone ? ' gone' : ''}` }, [
+        thumbEl(f.cover),
+        el('div', {}, [
+          el('b', { text: f.title }, tag),
+          el('span', { text: gone ? 'No longer on the station' : f.artist || 'Unknown artist' }),
+        ]),
+        starButton(f),
+        el('div', { class: 'fav-links' }, links),
+      ]);
+    }),
   );
 }
 
@@ -819,7 +964,7 @@ function runHypeTrain(h) {
 // --- leaderboard ----------------------------------------------------------------------------
 function renderLeaderboard() {
   const list = [...(S.server?.leaderboard || [])].sort((a, b) => totalFor(b) - totalFor(a));
-  const key = JSON.stringify(list.map((t) => [t.id, totalFor(t), t.cover, t.title, t.artist])) + (S.shown?.id || '');
+  const key = JSON.stringify(list.map((t) => [t.id, totalFor(t), t.cover, t.title, t.artist, isFav(t.id)])) + (S.shown?.id || '');
   if (key === leaderKey) return;
   leaderKey = key;
   if (!list.length) {
@@ -847,6 +992,7 @@ function renderLeaderboard() {
           el('b', { text: t.title }, onAir ? el('span', { class: 'on-air-tag', text: 'ON AIR' }) : null),
           el('span', { text: t.artist || 'Unknown artist' }),
         ]),
+        starButton(t),
         btn,
       ]);
     }),
@@ -860,6 +1006,8 @@ function tick() {
   renderLists();
   renderLeaderboard();
   renderLike(tr);
+  renderFavButton(tr);
+  renderFavorites();
   renderSync();
   if (tr) {
     const elapsed = Math.min(tr.duration, Math.max(0, (serverNow() - S.lat * 1000 - tr.startedAt) / 1000));
@@ -1015,19 +1163,19 @@ function toggleDrawer(open = $('drawer').hidden) {
   $('queueBtn').setAttribute('aria-expanded', String(open));
 }
 
+const DRAWER_TABS = { queue: ['tabQueue', 'panelQueue'], top: ['tabTop', 'panelTop'], fav: ['tabFav', 'panelFav'] };
 function showDrawerTab(tab) {
-  const top = tab === 'top';
-  $('tabQueue').setAttribute('aria-selected', String(!top));
-  $('tabTop').setAttribute('aria-selected', String(top));
-  $('panelQueue').hidden = top;
-  $('panelTop').hidden = !top;
+  for (const [name, [tabId, panelId]] of Object.entries(DRAWER_TABS)) {
+    $(tabId).setAttribute('aria-selected', String(name === tab));
+    $(panelId).hidden = name !== tab;
+  }
+  if (tab === 'fav') refreshFavorites();
 }
-$('tabQueue').addEventListener('click', () => showDrawerTab('queue'));
-$('tabTop').addEventListener('click', () => showDrawerTab('top'));
+for (const [name, [tabId]] of Object.entries(DRAWER_TABS)) $(tabId).addEventListener('click', () => showDrawerTab(name));
 
 // The dock buttons open the panel on their tab; pressing one again closes it.
 function openDrawerOn(tab) {
-  const onIt = !$('drawer').hidden && $(tab === 'top' ? 'tabTop' : 'tabQueue').getAttribute('aria-selected') === 'true';
+  const onIt = !$('drawer').hidden && $(DRAWER_TABS[tab][0]).getAttribute('aria-selected') === 'true';
   showDrawerTab(tab);
   toggleDrawer(!onIt);
 }
@@ -1052,5 +1200,6 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'm') toggleMute();
   // Holding L auto-repeats, which spams likes, which is the point.
   else if (e.key === 'l') likeCurrent();
+  else if (e.key === 's' && !e.repeat && S.shown) toggleFav(S.shown, $('favBtn'));
   else if (e.key === 'Escape') toggleDrawer(false);
 });

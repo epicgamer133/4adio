@@ -65,6 +65,9 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.4C1.6 8.2 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 5.4 3.7 4.3 6.6-1.8 4.8-9.3 9.4-9.3 9.4z"/></svg>
           <span id="likeCount">0</span>
         </button>
+        <button class="fav-btn" id="favBtn" aria-pressed="false" aria-label="Save to favorites" title="Save to your favorites (S)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg>
+        </button>
         <div class="hype-goal" id="hypeGoal" hidden>
           <div class="hype-goal-top">
             <span class="hype-level" id="hypeLevel">Like goal</span>
@@ -123,6 +126,7 @@
       <div class="drawer-tabs" role="tablist">
         <button role="tab" id="tabQueue" aria-selected="true" aria-controls="panelQueue">Up next</button>
         <button role="tab" id="tabTop" aria-selected="false" aria-controls="panelTop">Most liked</button>
+        <button role="tab" id="tabFav" aria-selected="false" aria-controls="panelFav">Favorites</button>
       </div>
       <button class="icon-btn" id="drawerClose" aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -143,6 +147,12 @@
     <div id="panelTop" role="tabpanel" aria-labelledby="tabTop" hidden>
       <h3>Most liked songs</h3>
       <div id="leaderboard" class="track-list leaderboard"></div>
+    </div>
+
+    <div id="panelFav" role="tabpanel" aria-labelledby="tabFav" hidden>
+      <h3>Your favorites</h3>
+      <p class="fav-note">Saved on this device only. Nobody else can see them.</p>
+      <div id="favList" class="track-list favorites"></div>
     </div>
   </aside>
 
