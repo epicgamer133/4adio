@@ -164,6 +164,18 @@ Same honest limit as the audio: a screenshot always works. What's blocked:
   If it's wrong, all listeners share one bucket and likes are capped at ~36/s station-wide.
 - Goal numbers are `HYPE_GOALS` in `server/likes.js`; tune them to the audience size.
 
+### Decision 13: private favorites
+Separate from likes on purpose: **likes are public hype, favorites are a personal bookmark.**
+- Stored only in the listener's browser (`localStorage` key `radio.favorites`), never sent to the server,
+  and invisible to other listeners and the admin. Trade-off: they don't follow you to another device or
+  browser, and clearing site data erases them. Moving them server-side (keyed by the anonymous `rs_lid`
+  cookie, or real accounts) would be the next step if cross-device favorites are ever wanted.
+- Star button next to the heart (or `S`); stars on Up next, History and Most liked rows too.
+- Side panel "Favorites" tab: saved songs with artwork, "Listen on" icons, ON AIR / UP NEXT tags, and
+  greyed "No longer on the station" for removed songs. Details refresh via `GET /api/tracks?ids=...`
+  (public info for playable songs only).
+- A toast says when a favorite comes on; Up next shows a FAVORITE tag. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.
