@@ -121,6 +121,21 @@
     </button>
   </div>
 
+  <aside class="reminder" id="reminder" aria-label="Community" hidden>
+    <button class="reminder-close" id="reminderClose" aria-label="Dismiss">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="reminder-head">
+      <span class="reminder-icon" id="reminderIcon" aria-hidden="true"></span>
+      <b id="reminderTitle"></b>
+    </div>
+    <p id="reminderText"></p>
+    <div class="reminder-actions">
+      <a class="reminder-cta" id="reminderCta" target="_blank" rel="noopener noreferrer"></a>
+      <nav class="reminder-socials" id="reminderSocials" aria-label="More socials"></nav>
+    </div>
+  </aside>
+
   <div class="toast" id="toast" role="status" hidden></div>
 
   <audio id="audio" preload="none"></audio>

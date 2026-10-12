@@ -14,6 +14,13 @@ const DEFAULT_SETTINGS = {
   background: null, // { file, type: 'image' | 'video', rev }
   backgroundOpacity: 0.35,
   socials: {},
+  // Small, dismissible "come hang out" card on the listener page.
+  reminder: {
+    enabled: true,
+    title: 'Join the community',
+    message: 'Hop in the Discord to hear new music first, request songs and hang out with other listeners.',
+    delaySec: 45,
+  },
 };
 
 function readJson(file, fallback) {
@@ -245,6 +252,18 @@ class Library extends EventEmitter {
       if (Number.isFinite(o)) s.backgroundOpacity = Math.min(1, Math.max(0, o));
     }
     if ('socials' in patch) s.socials = cleanLinks(patch.socials, SOCIAL_KEYS);
+    if (patch.reminder && typeof patch.reminder === 'object') {
+      const r = { ...DEFAULT_SETTINGS.reminder, ...s.reminder };
+      const p = patch.reminder;
+      if ('enabled' in p) r.enabled = Boolean(p.enabled);
+      if ('title' in p) r.title = cleanText(p.title, 60) || DEFAULT_SETTINGS.reminder.title;
+      if ('message' in p) r.message = cleanText(p.message, 220);
+      if ('delaySec' in p) {
+        const d = Number(p.delaySec);
+        if (Number.isFinite(d)) r.delaySec = Math.min(600, Math.max(0, Math.round(d)));
+      }
+      s.reminder = r;
+    }
     if ('background' in patch) s.background = patch.background;
     this.saveSettings();
     return s;
@@ -279,6 +298,7 @@ class Library extends EventEmitter {
       backgroundOpacity: s.backgroundOpacity,
       background: s.background ? { url: `/bg/${s.background.file}?v=${s.background.rev}`, type: s.background.type } : null,
       socials: s.socials,
+      reminder: { ...DEFAULT_SETTINGS.reminder, ...s.reminder },
     };
   }
 }

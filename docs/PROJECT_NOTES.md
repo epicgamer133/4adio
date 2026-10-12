@@ -124,6 +124,15 @@ embedded in the file.** An album without artwork adopts the first embedded cover
 dialog's Artwork section says which source is in use and can reset a song to its album's artwork.
 Owner's request, 2026-10-12.
 
+### Decision 10: a gentle community reminder
+A small card in the bottom-left corner invites listeners to the Discord (or the first social link
+when there's no Discord), with the other socials as small icons. Kept deliberately non-invasive:
+- it appears only after N seconds of actual listening (default 45), once per visit
+- it never covers the player; on narrower screens it moves above the dock, and it steps aside while the "behind live" bar shows
+- closing it snoozes it for 3 days; clicking Join snoozes it for 30 (stored in the listener's browser)
+- it only appears if at least one social link is set
+Heading, message, delay and on/off are editable in admin → Station. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

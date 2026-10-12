@@ -359,6 +359,7 @@ function renderSync() {
     : '';
   pill.disabled = state !== 'behind';
   $('resync').hidden = state !== 'behind';
+  $('reminder').classList.toggle('yield', state === 'behind');
   if (state === 'behind') $('behindBy').textContent = `${behindBy}s`;
 }
 
@@ -557,6 +558,65 @@ function applySettings(s) {
   }
   S.shownSig = ''; // re-render title with new station name
 }
+
+// --- community reminder -----------------------------------------------------------------------
+// A small corner card nudging listeners toward the station's Discord / socials.
+// Shows once per visit after some listening time; dismissing it snoozes it.
+const REMINDER_KEY = 'radio.reminder';
+let reminderShown = false;
+let listenedSec = 0;
+
+function reminderSnoozed() {
+  try {
+    return (JSON.parse(store.get(REMINDER_KEY) || 'null')?.until || 0) > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function hideReminder(snoozeDays) {
+  store.set(REMINDER_KEY, JSON.stringify({ until: Date.now() + snoozeDays * 86_400_000 }));
+  const card = $('reminder');
+  card.classList.add('leaving');
+  setTimeout(() => (card.hidden = true), 350);
+}
+
+function showReminder() {
+  const r = S.settings.reminder;
+  const socials = S.settings.socials || {};
+  // Lead with Discord when there is one; otherwise the first social link.
+  const key = socials.discord ? 'discord' : Object.keys(socials)[0];
+  const label = SOCIAL_LABELS[key] || key;
+  const branded = key === 'discord';
+
+  const icon = $('reminderIcon');
+  icon.className = `reminder-icon${branded ? '' : ' generic'}`;
+  icon.replaceChildren(brandIcon(key, label));
+  $('reminderTitle').textContent = r.title;
+  $('reminderText').textContent = r.message;
+  $('reminderText').hidden = !r.message;
+  const cta = $('reminderCta');
+  cta.href = socials[key];
+  cta.className = `reminder-cta${branded ? '' : ' generic'}`;
+  cta.textContent = branded ? 'Join the Discord' : key === 'website' ? 'Visit the website' : `Follow on ${label}`;
+  renderSocials($('reminderSocials'), Object.fromEntries(Object.entries(socials).filter(([k]) => k !== key).slice(0, 5)));
+
+  const card = $('reminder');
+  card.classList.remove('leaving');
+  card.hidden = false;
+  reminderShown = true;
+}
+
+$('reminderClose').addEventListener('click', () => hideReminder(3));
+$('reminderCta').addEventListener('click', () => hideReminder(30));
+
+setInterval(() => {
+  const r = S.settings?.reminder;
+  if (reminderShown || !r?.enabled || !Object.keys(S.settings.socials || {}).length || reminderSnoozed()) return;
+  if (body.classList.contains('playing')) listenedSec++;
+  // Wait for a calm moment: not while the sync prompt or the queue drawer is open.
+  if (listenedSec >= r.delaySec && $('resync').hidden && $('drawer').hidden) showReminder();
+}, 1000);
 
 // --- live events ----------------------------------------------------------------------------
 function connectEvents() {

@@ -334,6 +334,49 @@ body.loading .play-btn .spinner { display: block; }
 .tune-in b { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
 .tune-in small { color: var(--muted); font-size: 14px; max-width: 260px; text-align: center; line-height: 1.4; }
 
+/* Community reminder: small corner card, never covers the player. */
+.reminder {
+  position: fixed; z-index: 6; left: clamp(16px, 3vw, 28px); bottom: max(20px, env(safe-area-inset-bottom));
+  width: min(300px, calc(100vw - 32px));
+  padding: 14px 16px 14px;
+  border-radius: 18px;
+  background: var(--glass-strong); border: 1px solid var(--stroke);
+  backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.85);
+  animation: reminderIn 0.6s cubic-bezier(.2, .8, .2, 1);
+}
+.reminder.yield { visibility: hidden; }
+.reminder.leaving { animation: reminderOut 0.35s ease-in forwards; }
+.reminder-close {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: none; color: var(--muted);
+}
+.reminder-close:hover { background: rgba(255,255,255,.08); color: var(--fg); }
+.reminder-close svg { width: 15px; height: 15px; }
+.reminder-head { display: flex; align-items: center; gap: 10px; padding-right: 26px; }
+.reminder-icon {
+  width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  background: #5865f2; box-shadow: 0 0 18px -4px #5865f2;
+}
+.reminder-icon.generic { background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 18px -4px var(--accent); }
+.reminder-icon img { width: 17px; height: 17px; filter: invert(1); }
+.reminder-icon svg { width: 17px; height: 17px; color: #fff; }
+.reminder-head b { font-size: 15px; font-weight: 600; }
+.reminder p { margin: 8px 0 12px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.reminder-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.reminder-cta {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 999px;
+  background: #5865f2; color: #fff; text-decoration: none; font-size: 13.5px; font-weight: 600;
+  transition: filter 0.15s, transform 0.15s;
+}
+.reminder-cta.generic { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.reminder-cta:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.reminder-socials { display: flex; gap: 4px; }
+.reminder-socials .social { width: 30px; height: 30px; }
+.reminder-socials .social img { width: 13px; height: 13px; }
+@keyframes reminderIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes reminderOut { to { opacity: 0; transform: translateY(12px) scale(0.97); } }
+
 .toast {
   position: fixed; z-index: 9; left: 50%; top: 80px; transform: translateX(-50%);
   padding: 10px 16px; border-radius: 12px; font-size: 14px;
@@ -354,6 +397,10 @@ body.loading .play-btn .spinner { display: block; }
 }
 
 /* ---------- responsive ---------- */
+/* Not enough room beside the centered dock: sit above it instead. */
+@media (max-width: 1120px) {
+  .reminder { bottom: calc(max(20px, env(safe-area-inset-bottom)) + 84px); }
+}
 @media (max-width: 860px) {
   :root { --art: min(64vw, 36vh, 340px); }
   .stage { flex-direction: column; text-align: center; gap: 26px; padding: 84px 16px 150px; }
@@ -361,6 +408,7 @@ body.loading .play-btn .spinner { display: block; }
   .links { justify-content: center; }
   .hide-sm { display: none; }
   .topbar .socials { display: none; }
+  .reminder { left: 16px; right: 16px; width: auto; }
   .volume input { width: 100%; min-width: 0; }
 }
 @media (max-height: 560px) and (min-width: 861px) {

@@ -648,6 +648,19 @@ async function loadSettings() {
   f.accent.value = s.accent;
   f.backgroundOpacity.value = s.backgroundOpacity;
   for (const k of socialKeys) f[`social_${k}`].value = s.socials?.[k] || '';
+  const r = s.reminder || {};
+  f.reminderEnabled.checked = r.enabled !== false;
+  f.reminderTitle.value = r.title || '';
+  f.reminderMessage.value = r.message || '';
+  // Keep a custom delay (set some other way) selectable.
+  const delay = String(r.delaySec ?? 45);
+  if (![...f.reminderDelay.options].some((o) => o.value === delay)) {
+    f.reminderDelay.append(el('option', { value: delay, text: `${delay} seconds of listening` }));
+  }
+  f.reminderDelay.value = delay;
+  $('reminderHint').textContent = !Object.keys(s.socials || {}).length
+    ? 'Add at least one social link above. The reminder only appears once there is somewhere to send people.'
+    : s.socials.discord ? 'Leads with your Discord link.' : 'No Discord link yet, so it leads with your first social link.';
   renderBgPreview(s.background);
   $('bgRemove').disabled = !s.background;
 }
@@ -664,6 +677,12 @@ $('settingsForm').addEventListener('submit', async (e) => {
       accent: f.accent.value,
       backgroundOpacity: Number(f.backgroundOpacity.value),
       socials,
+      reminder: {
+        enabled: f.reminderEnabled.checked,
+        title: f.reminderTitle.value,
+        message: f.reminderMessage.value,
+        delaySec: Number(f.reminderDelay.value),
+      },
     });
     $('settingsStatus').textContent = 'Saved. Listeners see it instantly.';
     setTimeout(() => ($('settingsStatus').textContent = ''), 3000);

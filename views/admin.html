@@ -156,6 +156,24 @@
           <h3>Station socials</h3>
           <p class="muted small">Shown as icons on the radio page. Leave blank to hide.</p>
           <div id="socialFields"></div>
+
+          <h3 class="mt">Community reminder</h3>
+          <p class="muted small">A small card in the corner of the radio that invites listeners to your Discord (or your first social link). It appears once per visit after they've listened a while; closing it hides it for 3 days.</p>
+          <label class="check-row"><input type="checkbox" name="reminderEnabled"> Show the reminder</label>
+          <label>Heading <input name="reminderTitle" maxlength="60"></label>
+          <label>Message <textarea name="reminderMessage" maxlength="220" rows="3"></textarea></label>
+          <label>Show it after
+            <select name="reminderDelay">
+              <option value="0">Right away</option>
+              <option value="20">20 seconds of listening</option>
+              <option value="45">45 seconds of listening</option>
+              <option value="90">1.5 minutes of listening</option>
+              <option value="180">3 minutes of listening</option>
+              <option value="300">5 minutes of listening</option>
+            </select>
+          </label>
+          <p class="muted small" id="reminderHint"></p>
+
           <div class="row gap mt">
             <button class="btn primary" type="submit">Save station</button>
             <span class="muted small" id="settingsStatus"></span>
