@@ -331,8 +331,10 @@ export class Visualizer {
         s.z = 1.05;
         continue;
       }
-      ctx.strokeStyle = rgba(this.colors[s.c], (1.05 - s.z) * 0.9);
-      ctx.lineWidth = (1.05 - s.z) * 2.6;
+      // Tinted toward white so streaks stay visible over a custom background,
+      // even one that shares the cover's colors.
+      ctx.strokeStyle = rgba(mix(this.colors[s.c], [255, 255, 255], 0.45), (1.05 - s.z) * 0.95);
+      ctx.lineWidth = (1.05 - s.z) * 3;
       ctx.beginPath();
       ctx.moveTo(px, py);
       ctx.lineTo(nx, ny);

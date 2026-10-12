@@ -107,24 +107,12 @@
           <h3>Station</h3>
           <label>Station name <input name="stationName" maxlength="80" required></label>
           <label>Tagline <input name="tagline" maxlength="160"></label>
-          <div class="row gap">
-            <label class="grow">Accent color (used when a song has no cover)
-              <input type="color" name="accent">
-            </label>
-            <label class="grow">Default visualizer
-              <select name="defaultVisualizer">
-                <option value="nebula">Nebula</option>
-                <option value="bars">Spectrum</option>
-                <option value="ring">Halo</option>
-                <option value="wave">Waves</option>
-                <option value="warp">Warp</option>
-                <option value="minimal">Minimal</option>
-              </select>
-            </label>
-          </div>
+          <label>Accent color (used when a song has no cover)
+            <input type="color" name="accent">
+          </label>
 
           <h3 class="mt">Custom background</h3>
-          <p class="muted small">Optional image or looping video behind the visualizer. Videos are converted to a muted MP4.</p>
+          <p class="muted small">Optional image or looping video behind the Warp visualizer. Videos are converted to a muted MP4.</p>
           <div class="bg-preview" id="bgPreview"></div>
           <div class="row gap">
             <label class="btn ghost file-btn">Upload image or video

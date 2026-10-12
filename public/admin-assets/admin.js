@@ -408,7 +408,6 @@ async function loadSettings() {
   f.stationName.value = s.stationName;
   f.tagline.value = s.tagline || '';
   f.accent.value = s.accent;
-  f.defaultVisualizer.value = s.defaultVisualizer;
   f.backgroundOpacity.value = s.backgroundOpacity;
   for (const k of socialKeys) f[`social_${k}`].value = s.socials?.[k] || '';
   renderBgPreview(s.background);
@@ -425,7 +424,6 @@ $('settingsForm').addEventListener('submit', async (e) => {
       stationName: f.stationName.value,
       tagline: f.tagline.value,
       accent: f.accent.value,
-      defaultVisualizer: f.defaultVisualizer.value,
       backgroundOpacity: Number(f.backgroundOpacity.value),
       socials,
     });

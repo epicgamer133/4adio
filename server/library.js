@@ -6,13 +6,11 @@ import { paths } from './config.js';
 
 export const LINK_KEYS = ['spotify', 'appleMusic', 'youtube', 'soundcloud', 'bandcamp', 'tidal', 'deezer', 'other'];
 export const SOCIAL_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'spotify', 'soundcloud', 'facebook', 'twitch', 'discord', 'website'];
-export const VISUALIZERS = ['nebula', 'bars', 'ring', 'wave', 'warp', 'minimal'];
 
 const DEFAULT_SETTINGS = {
   stationName: 'Night Radio',
   tagline: 'Always on. Always live.',
   accent: '#8b5cf6',
-  defaultVisualizer: 'nebula',
   background: null, // { file, type: 'image' | 'video', rev }
   backgroundOpacity: 0.35,
   socials: {},
@@ -135,9 +133,6 @@ class Library extends EventEmitter {
     if ('stationName' in patch) s.stationName = cleanText(patch.stationName, 80) || s.stationName;
     if ('tagline' in patch) s.tagline = cleanText(patch.tagline, 160);
     if ('accent' in patch && /^#[0-9a-f]{6}$/i.test(patch.accent)) s.accent = patch.accent;
-    if ('defaultVisualizer' in patch && VISUALIZERS.includes(patch.defaultVisualizer)) {
-      s.defaultVisualizer = patch.defaultVisualizer;
-    }
     if ('backgroundOpacity' in patch) {
       const o = Number(patch.backgroundOpacity);
       if (Number.isFinite(o)) s.backgroundOpacity = Math.min(1, Math.max(0, o));
@@ -168,7 +163,6 @@ class Library extends EventEmitter {
       stationName: s.stationName,
       tagline: s.tagline,
       accent: s.accent,
-      defaultVisualizer: s.defaultVisualizer,
       backgroundOpacity: s.backgroundOpacity,
       background: s.background ? { url: `/bg/${s.background.file}?v=${s.background.rev}`, type: s.background.type } : null,
       socials: s.socials,

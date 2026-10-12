@@ -194,15 +194,6 @@ body.loading .play-btn .spinner { display: block; }
 .volume svg { width: 20px; height: 20px; flex: none; }
 .volume input { width: 96px; accent-color: var(--accent); cursor: pointer; }
 
-.viz-picker { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.05); }
-.viz-picker button {
-  border: 0; background: none; color: var(--muted);
-  height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
-  transition: background 0.2s, color 0.2s;
-}
-.viz-picker button:hover { color: var(--fg); }
-.viz-picker button[aria-checked='true'] { background: rgba(255,255,255,.12); color: var(--fg); }
-
 .dock-end { display: flex; gap: 4px; }
 .icon-btn {
   width: 38px; height: 38px; border: 0; border-radius: 50%;
@@ -240,7 +231,6 @@ body.loading .play-btn .spinner { display: block; }
 .track-row time { font-size: 12px; color: var(--muted); flex: none; }
 .drawer-socials { flex-wrap: wrap; gap: 8px; padding: 0 4px; }
 .drawer-socials .social { width: 38px; height: 38px; }
-.viz-cycle { display: none; }
 .empty-note { color: var(--muted); font-size: 13.5px; padding: 4px 8px; }
 
 /* ---------- tune-in overlay ---------- */
@@ -296,10 +286,8 @@ body.loading .play-btn .spinner { display: block; }
   .stage { flex-direction: column; text-align: center; gap: 26px; padding: 84px 16px 150px; }
   .meta { width: 100%; max-width: 440px; }
   .links { justify-content: center; }
-  .viz-picker { display: none; }
   .hide-sm { display: none; }
   .topbar .socials { display: none; }
-  .viz-cycle { display: grid; }
   .dock { width: calc(100vw - 32px); justify-content: space-between; }
   .volume input { width: clamp(70px, 30vw, 140px); }
 }

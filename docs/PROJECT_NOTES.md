@@ -73,10 +73,21 @@ switch at the moment *that listener* hears the new song.
 A new listener first gets a 2-second burst of recent audio, so playback starts instantly. If a listener
 falls more than 8 seconds behind, the page reconnects to live.
 
-### Decision 5: visualizers from the real audio
-Web Audio's AnalyserNode reads the stream; the stream is same-origin, so there are no CORS issues. Six
-canvas modes: Nebula, Spectrum, Halo, Waves, Warp, Minimal. Colors are pulled from the current cover
-art and also re-theme the UI accent. The admin can set a custom background image or video behind the visualizer.
+### Decision 5: one visualizer, Warp, driven by the real audio
+Web Audio's AnalyserNode reads the stream; the stream is same-origin, so there are no CORS issues. Star
+speed and brightness follow the music's energy and bass hits. Colors are pulled from the current cover
+art and also re-theme the UI accent.
+
+**Owner's choice (2026-10-11): Warp is the station's single signature style.** The listener-facing
+visualizer switcher and the admin "default visualizer" setting were removed. Listeners whose OS asks
+for reduced motion get the calm Minimal mode. The other modes (Nebula, Spectrum, Halo, Waves) still
+exist in `public/js/visualizer.js`, unused, in case the owner wants to revisit them.
+
+**Custom background (planned use):** the owner wants to add their own background later. This is
+already supported: admin → Station → Custom background accepts an image or a video (converted to a
+muted looping MP4), plus a visibility slider. Warp draws its streaks over it with transparent trails,
+and the streaks are tinted toward white so they stay visible on bright or similarly colored
+backgrounds. Tested with a sample image; the slot was left empty for the owner's own background.
 
 There is a fallback for browsers that output silence when a live stream goes through Web Audio:
 the page detects it and switches to direct playback.
@@ -127,7 +138,7 @@ server/library.js      library + settings storage, input cleaning, public views 
 server/auth.js         admin login/session/rate limit
 server/index.js        routes, security headers, SSE, admin API
 public/js/app.js       listener page: playback, sync timing, UI, reconnects
-public/js/visualizer.js  the six visualizer modes
+public/js/visualizer.js  visualizer (Warp in use; other modes kept but unused)
 public/js/palette.js   cover-art color extraction
 views/admin.html + public/admin-assets/   admin panel
 deploy/                nginx, Apache, systemd configs

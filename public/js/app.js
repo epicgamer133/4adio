@@ -1,4 +1,4 @@
-import { Visualizer, MODES } from './visualizer.js';
+import { Visualizer } from './visualizer.js';
 import { extractPalette, paletteFromAccent } from './palette.js';
 
 const $ = (id) => document.getElementById(id);
@@ -108,31 +108,10 @@ function updateFocus() {
 new ResizeObserver(updateFocus).observe($('art'));
 addEventListener('resize', updateFocus);
 
+// The station has one signature look: Warp. (People who ask their OS for
+// reduced motion get the calm Minimal mode instead.)
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let vizChosen = store.get('radio.viz');
-
-function setViz(mode, save = false) {
-  if (!MODES.some((m) => m.id === mode)) mode = 'nebula';
-  viz.setMode(mode);
-  for (const b of $('vizPicker').children) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
-  if (save) {
-    vizChosen = mode;
-    store.set('radio.viz', mode);
-  }
-}
-for (const m of MODES) {
-  const b = el('button', { role: 'radio', 'data-mode': m.id, text: m.label, 'aria-checked': 'false' });
-  b.addEventListener('click', () => setViz(m.id, true));
-  $('vizPicker').append(b);
-}
-function cycleViz() {
-  const i = MODES.findIndex((m) => m.id === viz.mode);
-  const next = MODES[(i + 1) % MODES.length];
-  setViz(next.id, true);
-  toast(`Visualizer: ${next.label}`, 1200);
-}
-$('vizCycle').addEventListener('click', cycleViz);
-setViz(vizChosen || (reducedMotion ? 'minimal' : 'nebula'));
+viz.setMode(reducedMotion ? 'minimal' : 'warp');
 
 // --- audio ------------------------------------------------------------------------
 let audio = $('audio');
@@ -464,7 +443,6 @@ function applySettings(s) {
   $('drawerFollow').hidden = !Object.keys(s.socials || {}).length;
   S.accentPalette = paletteFromAccent(s.accent || '#8b5cf6');
   if (!S.shown?.cover) setPalette(S.accentPalette);
-  if (!vizChosen && !reducedMotion) setViz(s.defaultVisualizer);
   root.style.setProperty('--bg-opacity', String(s.backgroundOpacity ?? 0.35));
 
   const bgUrl = s.background?.url || null;
@@ -520,7 +498,6 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     if (!$('tuneIn').classList.contains('gone')) startListening();
     else S.want ? stopListening() : startListening();
-  } else if (e.key === 'v') cycleViz();
-  else if (e.key === 'f') toggleFullscreen();
+  } else if (e.key === 'f') toggleFullscreen();
   else if (e.key === 'Escape') toggleDrawer(false);
 });

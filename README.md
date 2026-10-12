@@ -8,8 +8,8 @@ A self-hosted live radio. The server shuffles your library and broadcasts **one 
 - **Music stays private.** Songs live in `data/audio/`, which is never served. Listeners only ever get `/stream`: an endless live MP3 feed with no file URLs, no seeking and no download link.
 - **Fair shuffle.** Every song plays once before any song repeats, and the same song never plays twice in a row. New uploads join the current cycle.
 - **Admin panel.** Drag-and-drop uploads in any format. Songs are converted and loudness-matched, and the title, artist and cover art are read from the file's tags. You can edit info, set "Listen on" links per song, queue requests, skip, and toggle songs in or out of rotation.
-- **Visualizers.** Nebula, Spectrum, Halo, Waves, Warp and Minimal. They react to the real audio and take their colors from the current cover art. You can also add an optional custom background image or video.
-- **Live UI.** Cover art, title, artist, progress, up next, recently played, listener count, station socials, per-song streaming links, lock-screen controls and keyboard shortcuts (`Space` play/stop, `V` visualizer, `F` fullscreen).
+- **Warp visualizer.** A starfield that reacts to the real audio and takes its colors from the current cover art. You can add your own background image or looping video behind it (admin, then Station).
+- **Live UI.** Cover art, title, artist, progress, up next, recently played, listener count, station socials, per-song streaming links, lock-screen controls and keyboard shortcuts (`Space` play/stop, `F` fullscreen).
 
 > **Honest limit:** nothing played in a browser can be made impossible to *record*. Someone can always capture their own speakers. What this design stops is downloading or scraping your files, which is the realistic threat.
 
