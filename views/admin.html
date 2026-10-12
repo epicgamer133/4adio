@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Station Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/admin-assets/admin.css">
+</head>
+<body>
+  <!-- Login -->
+  <section class="login" id="loginView" hidden>
+    <form id="loginForm" class="card login-card">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <h1>Station admin</h1>
+      <label>Password
+        <input type="password" id="password" autocomplete="current-password" required autofocus>
+      </label>
+      <p class="error" id="loginError" role="alert"></p>
+      <button class="btn primary" type="submit">Log in</button>
+    </form>
+  </section>
+
+  <!-- App -->
+  <div class="app" id="appView" hidden>
+    <header class="top">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><b id="adminStation">Station</b></div>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="dashboard" aria-selected="true">On air</button>
+        <button role="tab" data-tab="library" aria-selected="false">Library</button>
+        <button role="tab" data-tab="settings" aria-selected="false">Station</button>
+      </nav>
+      <div class="top-actions">
+        <a class="btn ghost" href="/" target="_blank" rel="noopener">Open radio</a>
+        <button class="btn ghost" id="logoutBtn">Log out</button>
+      </div>
+    </header>
+
+    <!-- On air -->
+    <main class="panel" data-panel="dashboard">
+      <div class="grid-2">
+        <section class="card now">
+          <div class="now-art" id="nowArt"></div>
+          <div class="now-meta">
+            <p class="eyebrow"><span class="live-dot"></span>On air now</p>
+            <h2 id="nowTitle">Nothing playing</h2>
+            <p class="muted" id="nowArtist"></p>
+            <div class="bar"><i id="nowBar"></i></div>
+            <div class="row between muted small"><span id="nowPos">0:00</span><span id="nowDur">0:00</span></div>
+            <div class="row gap">
+              <button class="btn primary" id="skipBtn">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l10 7-10 7zM19 5v14"/></svg>
+                Skip track
+              </button>
+              <span class="stat"><b id="listeners">0</b> listening <span class="muted small" id="connections"></span></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Up next</h3>
+          <div id="dashNext" class="list"></div>
+          <h3 class="mt">Request queue <span class="muted small">(plays before the shuffle)</span></h3>
+          <div id="dashQueue" class="list"></div>
+        </section>
+      </div>
+
+      <section class="card mt">
+        <h3>Recently played</h3>
+        <div id="dashHistory" class="list cols"></div>
+      </section>
+    </main>
+
+    <!-- Library -->
+    <main class="panel" data-panel="library" hidden>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aif,.aiff" multiple hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <b>Drop songs here or click to choose</b>
+        <span class="muted small">MP3, WAV, FLAC, M4A, OGG, OPUS, AIFF. Title, artist and embedded cover art are read automatically. Everything is converted for the stream and stored privately.</span>
+      </label>
+      <div id="uploads" class="uploads"></div>
+
+      <div class="row between mt">
+        <h3 class="no-m"><span id="trackCount">0</span> tracks</h3>
+        <input type="search" id="search" placeholder="Search library" aria-label="Search library">
+      </div>
+      <div class="table-wrap card">
+        <table class="tracks">
+          <thead>
+            <tr><th></th><th>Title</th><th class="hide-sm">Duration</th><th class="hide-sm">Plays</th><th>In rotation</th><th></th></tr>
+          </thead>
+          <tbody id="trackRows"></tbody>
+        </table>
+        <p class="muted empty" id="libraryEmpty" hidden>No songs yet. Drop some in above.</p>
+      </div>
+      <input type="file" id="coverInput" accept="image/*" hidden>
+    </main>
+
+    <!-- Station settings -->
+    <main class="panel" data-panel="settings" hidden>
+      <form id="settingsForm" class="grid-2">
+        <section class="card">
+          <h3>Station</h3>
+          <label>Station name <input name="stationName" maxlength="80" required></label>
+          <label>Tagline <input name="tagline" maxlength="160"></label>
+          <div class="row gap">
+            <label class="grow">Accent color (used when a song has no cover)
+              <input type="color" name="accent">
+            </label>
+            <label class="grow">Default visualizer
+              <select name="defaultVisualizer">
+                <option value="nebula">Nebula</option>
+                <option value="bars">Spectrum</option>
+                <option value="ring">Halo</option>
+                <option value="wave">Waves</option>
+                <option value="warp">Warp</option>
+                <option value="minimal">Minimal</option>
+              </select>
+            </label>
+          </div>
+
+          <h3 class="mt">Custom background</h3>
+          <p class="muted small">Optional image or looping video behind the visualizer. Videos are converted to a muted MP4.</p>
+          <div class="bg-preview" id="bgPreview"></div>
+          <div class="row gap">
+            <label class="btn ghost file-btn">Upload image or video
+              <input type="file" id="bgInput" accept="image/*,video/mp4,video/webm,video/quicktime" hidden>
+            </label>
+            <button type="button" class="btn ghost danger" id="bgRemove">Remove</button>
+            <span class="muted small" id="bgStatus"></span>
+          </div>
+          <label>Background visibility <input type="range" name="backgroundOpacity" min="0" max="1" step="0.05"></label>
+        </section>
+
+        <section class="card">
+          <h3>Station socials</h3>
+          <p class="muted small">Shown as icons on the radio page. Leave blank to hide.</p>
+          <div id="socialFields"></div>
+          <div class="row gap mt">
+            <button class="btn primary" type="submit">Save station</button>
+            <span class="muted small" id="settingsStatus"></span>
+          </div>
+        </section>
+      </form>
+    </main>
+  </div>
+
+  <!-- Edit track -->
+  <dialog id="editDialog">
+    <form method="dialog" id="editForm" class="card dialog-card">
+      <h3>Edit track</h3>
+      <label>Title <input name="title" required maxlength="200"></label>
+      <div class="row gap">
+        <label class="grow">Artist <input name="artist" maxlength="200"></label>
+        <label class="grow">Album <input name="album" maxlength="200"></label>
+      </div>
+      <h3 class="mt">Where to find this song</h3>
+      <p class="muted small">Shown as "Listen on" buttons while the song plays.</p>
+      <div id="linkFields" class="link-fields"></div>
+      <div class="row gap end mt">
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="/admin-assets/admin.js"></script>
+</body>
+</html>

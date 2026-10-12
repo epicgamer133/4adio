@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07060b">
+  <title>Radio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%238b5cf6'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%2307060b'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <div class="cover-wash" id="coverWash"></div>
+    <div class="bg-media" id="bgMedia"></div>
+  </div>
+  <canvas id="viz" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1 id="stationName">Radio</h1>
+        <p id="tagline"></p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="pill live-pill"><i></i>Live</span>
+      <span class="pill" title="Listening right now">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2M3 14a2 2 0 0 1 2-2h1v7H5a2 2 0 0 1-2-2zm18 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"/></svg>
+        <b id="listenerCount">0</b><span class="hide-sm">&nbsp;listening</span>
+      </span>
+      <nav class="socials" id="socials" aria-label="Station socials"></nav>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="art" id="art">
+      <img id="cover" alt="" hidden>
+      <div class="art-empty" id="artEmpty" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>
+      </div>
+    </div>
+
+    <section class="meta" aria-live="polite">
+      <p class="eyebrow">Now playing</p>
+      <h2 id="title">Waiting for the first track</h2>
+      <p class="artist" id="artist"></p>
+      <p class="album" id="album"></p>
+      <div class="progress" aria-hidden="true">
+        <div class="progress-bar"><i id="progressFill"></i></div>
+        <div class="progress-times"><span id="elapsed">0:00</span><span id="duration">0:00</span></div>
+      </div>
+      <div class="links" id="links" aria-label="Find this song"></div>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <button class="play-btn" id="playBtn" aria-label="Tune in">
+      <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>
+      <span class="spinner" aria-hidden="true"></span>
+    </button>
+
+    <label class="volume" title="Volume">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path class="vol-wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+      <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
+    </label>
+
+    <div class="viz-picker" id="vizPicker" role="radiogroup" aria-label="Visualizer"></div>
+
+    <div class="dock-end">
+      <button class="icon-btn viz-cycle" id="vizCycle" aria-label="Change visualizer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4M21 12h0"/></svg>
+      </button>
+      <button class="icon-btn" id="queueBtn" aria-label="Up next and history" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h12M4 12h12M4 18h8M19 15v6M16 18h6"/></svg>
+      </button>
+      <button class="icon-btn" id="fullscreenBtn" aria-label="Fullscreen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </footer>
+
+  <aside class="drawer" id="drawer" aria-label="Up next and recently played" hidden>
+    <div class="drawer-head">
+      <h3>Up next</h3>
+      <button class="icon-btn" id="drawerClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="upNext" class="track-list"></div>
+    <h3>Recently played</h3>
+    <div id="history" class="track-list"></div>
+    <div id="drawerFollow" hidden>
+      <h3>Follow the station</h3>
+      <nav class="socials drawer-socials" id="drawerSocials" aria-label="Station socials"></nav>
+    </div>
+  </aside>
+
+  <div class="tune-in" id="tuneIn">
+    <button id="tuneInBtn">
+      <span class="tune-ring" aria-hidden="true"></span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      <b>Tune in</b>
+      <small>You'll join the stream live, in sync with everyone else</small>
+    </button>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <audio id="audio" preload="none"></audio>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

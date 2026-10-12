@@ -1,0 +1,3 @@
+# Keep Linux line endings so the Dockerfile, systemd unit and configs work on the server.
+* text=auto eol=lf
+*.bat text eol=crlf

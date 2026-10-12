@@ -1,0 +1,17 @@
+services:
+  radio:
+    build: .
+    container_name: radio-station
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8090
+      DATA_DIR: /app/data
+      # The host's nginx/Apache reaches the container through Docker's private network.
+      TRUST_PROXY: loopback,uniquelocal
+    # Bound to localhost only: the outside world reaches it through your web server, never directly.
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./data:/app/data

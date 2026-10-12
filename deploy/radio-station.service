@@ -1,0 +1,31 @@
+# systemd unit (non-Docker install).
+# Assumes the app is at /opt/radio-station and runs as a dedicated "radio" user.
+#   sudo useradd --system --home /opt/radio-station --shell /usr/sbin/nologin radio
+#   sudo chown -R radio:radio /opt/radio-station
+#   sudo cp deploy/radio-station.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now radio-station
+#   journalctl -u radio-station -f      # logs
+
+[Unit]
+Description=Radio station (live stream server)
+After=network.target
+
+[Service]
+Type=simple
+User=radio
+Group=radio
+WorkingDirectory=/opt/radio-station
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+# Sandbox: the app can only write to its own data folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/radio-station/data
+
+[Install]
+WantedBy=multi-user.target
