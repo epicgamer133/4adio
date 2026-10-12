@@ -2,6 +2,8 @@
 
 > **Experimental.** Design and features are still being explored. See [docs/PROJECT_NOTES.md](docs/PROJECT_NOTES.md) for the vision, the design decisions and the current status.
 
+**Just want it running?** See [INSTALL.md](INSTALL.md) for the bare-minimum demo setup.
+
 A self-hosted live radio. The server shuffles your library and broadcasts **one continuous stream**. Everyone who tunes in hears the same moment of the same song, the same way FM radio works.
 
 - **Always synced.** The station plays even when nobody is listening. Joining means tapping into the live feed, so there's no "start from the beginning" and nothing to drift.
