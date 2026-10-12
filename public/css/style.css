@@ -78,8 +78,41 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 }
 .pill svg { width: 15px; height: 15px; }
 .pill b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
-.live-pill { color: var(--fg); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11.5px; }
-.live-pill i { width: 7px; height: 7px; border-radius: 50%; background: #ff3d6e; box-shadow: 0 0 10px #ff3d6e; animation: pulse 1.6s ease-in-out infinite; }
+/* Live / sync status. Red = on air, green = you're in sync, amber = needs attention, grey = nothing live. */
+.live-pill {
+  --dot: #ff3d6e;
+  font: inherit; color: var(--fg); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11.5px;
+  cursor: default; transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.live-pill i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--dot); box-shadow: 0 0 10px var(--dot); animation: pulse 1.6s ease-in-out infinite; }
+.live-pill[data-state='synced'] { --dot: #22c55e; border-color: rgba(34, 197, 94, 0.35); }
+.live-pill[data-state='connecting'] { --dot: #f59e0b; }
+.live-pill[data-state='connecting'] i { animation-duration: 0.7s; }
+.live-pill[data-state='behind'] { --dot: #f59e0b; color: #fcd34d; border-color: rgba(245, 158, 11, 0.45); cursor: pointer; }
+.live-pill[data-state='behind']:hover { background: rgba(245, 158, 11, 0.15); }
+.live-pill[data-state='offline'], .live-pill[data-state='offair'] { --dot: #6b6880; color: var(--muted); }
+.live-pill[data-state='offline'] i, .live-pill[data-state='offair'] i { animation: none; box-shadow: none; }
+
+.resync {
+  position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
+  bottom: calc(max(20px, env(safe-area-inset-bottom)) + 84px);
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 7px 7px 14px; border-radius: 999px; white-space: nowrap;
+  background: rgba(40, 28, 8, 0.82); border: 1px solid rgba(245, 158, 11, 0.45); color: #fde68a;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.8);
+  font-size: 14px; animation: textIn 0.4s cubic-bezier(.2, .8, .2, 1);
+}
+.resync b { color: #fff; font-variant-numeric: tabular-nums; }
+.resync-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 10px #f59e0b; animation: pulse 1.2s ease-in-out infinite; }
+.resync button {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 14px; border: 0; border-radius: 999px;
+  background: #f59e0b; color: #1c1206; font-weight: 600; font-size: 13.5px;
+  transition: filter 0.15s;
+}
+.resync button:hover { filter: brightness(1.1); }
+.resync button svg { width: 15px; height: 15px; stroke-width: 2.2; }
 
 .socials { display: flex; gap: 6px; }
 .social {
@@ -101,17 +134,49 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   gap: clamp(28px, 5vw, 72px);
   padding: 90px clamp(16px, 5vw, 64px) 120px;
 }
+/* 3D album sleeve: .art holds the perspective and the beat pulse; .art-card
+   tilts toward the pointer (--rx/--ry set in app.js). */
 .art {
   width: var(--art); height: var(--art); flex: none;
-  border-radius: var(--radius);
   position: relative;
+  perspective: 900px;
   transform: scale(calc(1 + var(--beat) * 0.025));
+  touch-action: none;
+  --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50%; --lift: 0;
+}
+.art-card {
+  position: relative; width: 100%; height: 100%;
+  border-radius: var(--radius);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)) translateZ(calc(var(--lift) * 30px));
+  transition: transform 0.7s cubic-bezier(.2, .8, .2, 1), box-shadow 0.7s cubic-bezier(.2, .8, .2, 1);
+  /* The shadow falls away from the raised edge, like a real object. */
   box-shadow:
-    0 30px 80px -20px rgba(0, 0, 0, 0.8),
+    calc(var(--ry) * -1.4) calc(30px + var(--rx) * 1.4) 80px -20px rgba(0, 0, 0, 0.85),
     0 0 calc(40px + var(--bass) * 80px) -10px var(--accent);
-  transition: box-shadow 0.15s;
+  will-change: transform;
+}
+.art.tilting .art-card { transition: transform 0.12s ease-out, box-shadow 0.12s ease-out; }
+/* Sleeve thickness: a darker slab just behind the front face. */
+.art-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(135deg, #2a2635, #0d0b12);
+  transform: translateZ(-10px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+/* Moving light reflection on the glossy front. */
+.art-glare {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(circle at var(--gx) var(--gy), rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08) 35%, transparent 62%),
+    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.07) 50%, transparent 60%);
+  mix-blend-mode: soft-light;
+  opacity: calc(0.25 + var(--lift) * 0.75);
+  transition: opacity 0.5s;
+  transform: translateZ(1px);
 }
 .art img, .art-empty {
+  position: relative;
   width: 100%; height: 100%; border-radius: var(--radius);
   object-fit: cover; display: block;
   border: 1px solid var(--stroke);

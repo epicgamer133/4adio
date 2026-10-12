@@ -77,6 +77,8 @@ const S = {
   retry: 0,
   retryTimer: null,
   connectedAt: 0,
+  connectServer: 0, // server clock (ms) when the current stream connection began
+  eventsOnline: false,
   lastTime: 0,
   stuckFor: 0,
   flatFor: 0,
@@ -107,6 +109,38 @@ function updateFocus() {
 }
 new ResizeObserver(updateFocus).observe($('art'));
 addEventListener('resize', updateFocus);
+
+// --- 3D album cover: tilts toward the pointer (mouse or finger) ---------------------
+const MAX_TILT = 16; // degrees
+let tiltFrame = 0;
+function tiltTo(e) {
+  const art = $('art');
+  const r = art.getBoundingClientRect();
+  const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  cancelAnimationFrame(tiltFrame);
+  tiltFrame = requestAnimationFrame(() => {
+    art.classList.add('tilting');
+    art.style.setProperty('--ry', `${((px - 0.5) * 2 * MAX_TILT).toFixed(2)}deg`);
+    art.style.setProperty('--rx', `${((0.5 - py) * 2 * MAX_TILT).toFixed(2)}deg`);
+    art.style.setProperty('--gx', `${(px * 100).toFixed(1)}%`);
+    art.style.setProperty('--gy', `${(py * 100).toFixed(1)}%`);
+    art.style.setProperty('--lift', '1');
+  });
+}
+function untilt() {
+  cancelAnimationFrame(tiltFrame);
+  const art = $('art');
+  art.classList.remove('tilting'); // slower transition back to rest
+  for (const [k, v] of [['--rx', '0deg'], ['--ry', '0deg'], ['--gx', '50%'], ['--gy', '50%'], ['--lift', '0']]) {
+    art.style.setProperty(k, v);
+  }
+}
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  $('art').addEventListener('pointermove', tiltTo);
+  $('art').addEventListener('pointerdown', tiltTo);
+  for (const ev of ['pointerleave', 'pointerup', 'pointercancel']) $('art').addEventListener(ev, untilt);
+}
 
 // The station has one signature look: Warp. (People who ask their OS for
 // reduced motion get the calm Minimal mode instead.)
@@ -170,6 +204,10 @@ function connectStream() {
   clearTimeout(S.retryTimer);
   body.classList.add('loading');
   S.connectedAt = performance.now();
+  // The stream starts with a burst of the last few seconds, so its first
+  // byte is (server time at connect - burst). See streamDelay().
+  S.connectServer = serverNow();
+  S.lat = S.server?.burstSeconds ?? 2;
   S.stuckFor = 0;
   S.flatFor = 0;
   audio.src = `/stream?_=${Date.now()}`;
@@ -251,9 +289,10 @@ setInterval(() => {
   S.stuckFor = t === S.lastTime ? S.stuckFor + 1 : 0;
   S.lastTime = t;
   if (S.stuckFor >= 10) return scheduleReconnect();
-  // Drifted behind (long stall, slept device): jump back to live.
-  if (S.lat > 8) {
-    toast('Catching up to live');
+  // Small drift shows the "Jump to live" prompt (see renderSync). Only a huge
+  // gap, like a phone waking from sleep, resyncs without asking.
+  if (S.lat > 60) {
+    toast('Caught up to live');
     return connectStream();
   }
   if (analyser && S.server?.now) {
@@ -266,14 +305,70 @@ setInterval(() => {
 }, 1000);
 
 // --- now playing ----------------------------------------------------------------------
-function measureLatency() {
-  let target = 0;
-  if (S.want && audio.getAttribute('src')) {
-    const b = audio.buffered;
-    target = b.length ? Math.max(0, b.end(b.length - 1) - audio.currentTime) + 0.15 : S.server?.burstSeconds ?? 2;
-  }
-  S.lat += (target - S.lat) * 0.25;
+/**
+ * Seconds between the live edge and what this listener hears. Measured
+ * against the server clock, so it also catches slow networks and stalls
+ * (a buffer-size estimate would miss those).
+ */
+function streamDelay() {
+  if (!S.want || !audio.getAttribute('src') || !S.connectServer) return null;
+  const burst = S.server?.burstSeconds ?? 2;
+  return Math.max(0, (serverNow() - S.connectServer) / 1000 + burst - audio.currentTime);
 }
+
+function measureLatency() {
+  const target = streamDelay() ?? 0;
+  // Smooth small jitter, but follow real jumps (a stall) right away.
+  S.lat = Math.abs(target - S.lat) > 1 ? target : S.lat + (target - S.lat) * 0.25;
+}
+
+// --- live / sync indicator -------------------------------------------------------------
+const SYNC_SLACK = 3; // seconds past normal buffering before we call it "behind"
+
+function syncState() {
+  if (!S.eventsOnline) return 'offline';
+  if (!S.server?.now) return 'offair';
+  if (!S.want) return 'live';
+  const behind = S.lat - (S.server.burstSeconds ?? 2);
+  // Before audio actually starts, the gap is just the connection time.
+  const started = body.classList.contains('playing') && audio.currentTime > 0;
+  if (started && behind > SYNC_SLACK) return 'behind';
+  if (!started || body.classList.contains('loading')) return 'connecting';
+  return 'synced';
+}
+
+const SYNC_LABELS = {
+  offline: 'Offline',
+  offair: 'Off air',
+  live: 'Live',
+  synced: 'Live · Synced',
+  connecting: 'Connecting',
+};
+
+function renderSync() {
+  const state = syncState();
+  const behindBy = Math.round(S.lat - (S.server?.burstSeconds ?? 2));
+  const pill = $('livePill');
+  pill.dataset.state = state;
+  $('liveText').textContent = state === 'behind' ? `Behind ${behindBy}s` : SYNC_LABELS[state];
+  pill.title =
+    state === 'behind' ? 'You are behind the live stream. Click to jump to live.'
+    : state === 'synced' ? 'You are hearing the same moment as everyone else.'
+    : state === 'offline' ? 'Lost connection to the station. Reconnecting...'
+    : state === 'offair' ? 'Nothing is playing right now.'
+    : '';
+  pill.disabled = state !== 'behind';
+  $('resync').hidden = state !== 'behind';
+  if (state === 'behind') $('behindBy').textContent = `${behindBy}s`;
+}
+
+function resync() {
+  if (!S.want) return startListening();
+  toast('Jumped to live', 1400);
+  connectStream();
+}
+$('livePill').addEventListener('click', resync);
+$('resyncBtn').addEventListener('click', resync);
 
 /** The track this listener is actually hearing right now (accounts for their buffer). */
 function heardTrack() {
@@ -408,6 +503,7 @@ function tick() {
   const tr = heardTrack();
   if (sig(tr) !== S.shownSig) showTrack(tr);
   renderLists();
+  renderSync();
   if (tr) {
     const elapsed = Math.min(tr.duration, Math.max(0, (serverNow() - S.lat * 1000 - tr.startedAt) / 1000));
     $('progressFill').style.width = `${(elapsed / tr.duration) * 100}%`;
@@ -474,6 +570,9 @@ function connectEvents() {
     tick();
   });
   es.addEventListener('time', (e) => addClockSample(Number(e.data)));
+  // EventSource reconnects by itself; we only track whether it's connected.
+  es.addEventListener('open', () => (S.eventsOnline = true));
+  es.addEventListener('error', () => (S.eventsOnline = es.readyState === EventSource.OPEN));
 }
 connectEvents();
 

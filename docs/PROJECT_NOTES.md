@@ -97,6 +97,22 @@ The app listens on `127.0.0.1:8090` only and is reached through a new reverse-pr
 sites are never touched. There are two deployment options: Docker (most isolated, ffmpeg in the container)
 or Node + a sandboxed systemd service. Proxies must not buffer `/stream` or `/events`.
 
+### Decision 7: show listeners whether they're live and in sync
+The top-right badge shows the real state. Red **Live** = the station is on air. Green **Live · Synced**
+= you hear the same moment as everyone. Amber **Connecting** / **Behind 12s** = you need attention.
+Grey **Off air** / **Offline** = nothing to hear, or the server can't be reached.
+
+"Behind" is measured against the server clock, not the buffer size: the stream's first byte is
+(server time at connect − 2 s burst), so the delay is `serverNow − connectTime + burst − audio.currentTime`.
+That catches stalls and slow networks too. More than 3 s past normal shows a **Jump to live** bar
+(the badge is clickable too), which reconnects at the live edge. Only a gap over 60 s
+(e.g. a phone waking from sleep) resyncs without asking. Owner's request, 2026-10-12.
+
+### Decision 8: 3D album cover
+The cover tilts toward the mouse or finger (up to 16°) with a moving glossy reflection, a dark slab
+behind it for sleeve thickness, and a shadow that falls away from the raised edge. It eases back to
+flat when the pointer leaves, and is off for reduced-motion users. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.
