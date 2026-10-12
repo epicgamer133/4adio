@@ -75,13 +75,31 @@ setInterval(() => {
 app.get('/api/state', (req, res) => res.json(station.publicState()));
 
 const SAFE_FILE = /^[a-z0-9]+\.(jpg|mp4)$/;
-app.get('/cover/:file', (req, res) => {
+
+/**
+ * Artwork is only served to this site's own pages. Browsers label every
+ * request: Sec-Fetch-Dest "document" means someone opened the image URL in a
+ * tab, and Sec-Fetch-Site "cross-site" means another website is hotlinking it.
+ * (Older browsers that send neither header are let through.)
+ */
+function artworkGuard(req, res, next) {
+  // Without Vary, a browser that already showed the cover on the page would
+  // answer "open image in new tab" from its cache and never ask us.
+  res.setHeader('Vary', 'Sec-Fetch-Dest, Sec-Fetch-Site');
+  const dest = req.get('Sec-Fetch-Dest');
+  const site = req.get('Sec-Fetch-Site');
+  if (dest === 'document' || dest === 'iframe' || site === 'cross-site') return res.sendStatus(403);
+  next();
+}
+
+app.get('/cover/:file', artworkGuard, (req, res) => {
   if (!SAFE_FILE.test(req.params.file)) return res.sendStatus(404);
+  res.setHeader('Content-Disposition', 'inline');
   res.sendFile(path.join(paths.covers, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
     if (err && !res.headersSent) res.sendStatus(404);
   });
 });
-app.get('/bg/:file', (req, res) => {
+app.get('/bg/:file', artworkGuard, (req, res) => {
   if (!SAFE_FILE.test(req.params.file)) return res.sendStatus(404);
   res.sendFile(path.join(paths.backgrounds, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
     if (err && !res.headersSent) res.sendStatus(404);

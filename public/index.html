@@ -42,7 +42,8 @@
   <main class="stage">
     <div class="art" id="art">
       <div class="art-card">
-        <img id="cover" alt="" hidden>
+        <!-- A div with a background image, not an <img>: no "Save image as" or dragging. -->
+        <div class="cover-img" id="cover" role="img" aria-label="" hidden></div>
         <div class="art-empty" id="artEmpty" aria-hidden="true">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>
         </div>

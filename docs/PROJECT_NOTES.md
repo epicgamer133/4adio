@@ -133,6 +133,15 @@ when there's no Discord), with the other socials as small icons. Kept deliberate
 - it only appears if at least one social link is set
 Heading, message, delay and on/off are editable in admin → Station. Owner's request, 2026-10-12.
 
+### Decision 11: make artwork hard to grab
+Same honest limit as the audio: a screenshot always works. What's blocked:
+- The cover and thumbnails are CSS backgrounds, not `<img>`, so there's no "Save image as…"; right-click,
+  dragging and iOS long-press are disabled over artwork only (the rest of the page is normal).
+- `/cover/*` and `/bg/*` refuse requests with `Sec-Fetch-Dest: document` (URL opened in a tab) or
+  `Sec-Fetch-Site: cross-site` (another site hotlinking). `Vary: Sec-Fetch-Dest, Sec-Fetch-Site` stops
+  browsers answering "open in new tab" from the cached copy the page loaded.
+- Artwork URLs use random ids, so they can't be guessed. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

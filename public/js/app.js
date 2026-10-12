@@ -110,6 +110,14 @@ function updateFocus() {
 new ResizeObserver(updateFocus).observe($('art'));
 addEventListener('resize', updateFocus);
 
+// Artwork protection: no right-click menu or dragging on covers and thumbnails.
+// (The rest of the page keeps its normal right-click menu.)
+for (const ev of ['contextmenu', 'dragstart']) {
+  document.addEventListener(ev, (e) => {
+    if (e.target.closest?.('#art, .thumb')) e.preventDefault();
+  });
+}
+
 // --- 3D album cover: tilts toward the pointer (mouse or finger) ---------------------
 const MAX_TILT = 16; // degrees
 let tiltFrame = 0;
@@ -456,8 +464,8 @@ function showTrack(tr) {
     img.onload = () => {
       if (S.shown?.cover !== tr.cover) return;
       const cover = $('cover');
-      cover.src = tr.cover;
-      cover.alt = `Cover art for ${tr.title}`;
+      cover.style.backgroundImage = `url("${tr.cover}")`;
+      cover.setAttribute('aria-label', `Cover art for ${tr.title}`);
       cover.hidden = false;
       if (changedTrack) {
         cover.style.animation = 'none';
@@ -499,9 +507,16 @@ function showTrack(tr) {
   }
 }
 
+/** Thumbnail as a background, not an <img>, so it can't be saved or dragged. */
+function thumbEl(src) {
+  const t = el('span', { class: 'thumb', 'aria-hidden': 'true' });
+  if (src) t.style.backgroundImage = `url("${src}")`;
+  return t;
+}
+
 function trackRow(tr, { featured = false, label = '' } = {}) {
   return el('div', { class: `track-row${featured ? ' featured' : ''}` }, [
-    tr.cover ? el('img', { src: tr.cover, alt: '', loading: 'lazy' }) : el('span', { class: 'thumb' }),
+    thumbEl(tr.cover),
     el('div', {}, [el('b', { text: tr.title }), el('span', { text: tr.artist || 'Unknown artist' })]),
     label ? el('time', { text: label }) : null,
   ]);
