@@ -195,6 +195,13 @@ Separate from likes on purpose: **likes are public hype, favorites are a persona
 - Library: tick songs, then **Delete selected** (`POST /api/admin/tracks/delete`), which also removes
   their likes and favorite counts. Owner's request, 2026-10-12.
 
+### Decision 15: station logo
+Admin → Station → Logo uploads a logo (re-encoded to PNG up to 512px tall with ffmpeg, metadata stripped,
+stored in `data/backgrounds/logo*.png`, served at `/logo/*` without the artwork guard since it's public
+branding and the favicon). It replaces the spinning mark top-left (72px tall, 52px on phones, with a
+beat pulse and accent glow), becomes the browser tab icon, and shows in the admin header. The current
+logo is the owner's "4TUNAT 17+" rating-badge design (set 2026-10-12).
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

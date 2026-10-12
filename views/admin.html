@@ -27,7 +27,7 @@
   <!-- App -->
   <div class="app" id="appView" hidden>
     <header class="top">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><b id="adminStation">Station</b></div>
+      <div class="brand"><span class="brand-mark" id="adminMark" aria-hidden="true"></span><img class="admin-logo" id="adminLogo" alt="" hidden><b id="adminStation">Station</b></div>
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="dashboard" aria-selected="true">On air</button>
         <button role="tab" data-tab="library" aria-selected="false">Library</button>
@@ -171,6 +171,18 @@
           <label>Accent color (used when a song has no cover)
             <input type="color" name="accent">
           </label>
+
+          <h3 class="mt">Logo</h3>
+          <p class="muted small">Shown at the top-left of the radio and used as the browser tab icon. PNG with a transparent background works best; any shape is fine.</p>
+          <div class="logo-editor">
+            <div class="logo-preview" id="logoPreview"></div>
+            <div class="row gap">
+              <label class="btn ghost file-btn">Upload logo
+                <input type="file" id="logoInput" accept="image/*" hidden>
+              </label>
+              <button type="button" class="btn ghost danger" id="logoRemove">Remove</button>
+            </div>
+          </div>
 
           <h3 class="mt">Custom background</h3>
           <p class="muted small">Optional image or looping video behind the Warp visualizer. Videos are converted to a muted MP4.</p>

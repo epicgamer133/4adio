@@ -65,6 +65,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   position: relative;
 }
 .brand-mark::after { content: ''; position: absolute; inset: 11px; border-radius: 50%; background: var(--bg); }
+/* Uploaded station logo (replaces the spinning mark). Sized by height so any shape fits. */
+.brand-logo {
+  height: 72px; width: auto; max-width: 160px; flex: none; object-fit: contain;
+  border-radius: 4px;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 calc(4px + var(--bass) * 14px) var(--accent));
+  transform: scale(calc(1 + var(--beat) * 0.04));
+  -webkit-user-drag: none; user-select: none;
+}
 .brand h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand p { margin: 1px 0 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex: none; }
@@ -132,7 +140,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   position: fixed; z-index: 4; inset: 0;
   display: flex; align-items: center; justify-content: center;
   gap: clamp(28px, 5vw, 72px);
-  padding: 90px clamp(16px, 5vw, 64px) 120px;
+  padding: 110px clamp(16px, 5vw, 64px) 120px;
 }
 /* 3D album sleeve: .art holds the perspective and the beat pulse; .art-card
    tilts toward the pointer (--rx/--ry set in app.js). */
@@ -693,6 +701,7 @@ body.vol-low .vol-w2 { display: none; }
   .links, .song-actions { justify-content: center; }
   .hide-sm { display: none; }
   .topbar .socials { display: none; }
+  .brand-logo { height: 52px; }
   .reminder { left: 16px; right: 16px; width: auto; }
   .volume input[type='range'] { width: 100%; }
 }

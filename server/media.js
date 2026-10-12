@@ -73,6 +73,16 @@ export async function makeJpeg(input, output, maxSize = 800) {
   ], { timeoutMs: 60_000 });
 }
 
+/** Re-encode a logo as PNG (keeps transparency and crisp edges), at most maxH tall. Strips metadata. */
+export async function makeLogoPng(input, output, maxH = 512) {
+  await run(config.ffmpeg, [
+    '-hide_banner', '-nostdin', '-y', '-i', input,
+    '-map', '0:v:0', '-frames:v', '1', '-map_metadata', '-1',
+    '-vf', `scale=-1:'min(${maxH},ih)':flags=lanczos`,
+    '-f', 'image2', '-c:v', 'png', output,
+  ], { timeoutMs: 60_000 });
+}
+
 export async function makeBackgroundVideo(input, output) {
   // Muted, web-friendly H.264, capped at 1080p. Audio is dropped on purpose.
   await run(config.ffmpeg, [

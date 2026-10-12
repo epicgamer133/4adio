@@ -129,6 +129,10 @@ async function refreshStatus() {
   status = await api('GET', '/status');
   const now = status.now;
   $('adminStation').textContent = status.settings.stationName;
+  const logoUrl = status.settings.logo;
+  if (logoUrl && $('adminLogo').getAttribute('src') !== logoUrl) $('adminLogo').src = logoUrl;
+  $('adminLogo').hidden = !logoUrl;
+  $('adminMark').hidden = Boolean(logoUrl);
   $('nowTitle').textContent = now ? now.title : 'Nothing playing';
   $('nowArtist').textContent = now ? now.artist || 'Unknown artist' : 'Upload songs in the Library tab to go on air.';
   $('nowArt').style.backgroundImage = now?.cover ? `url("${now.cover}")` : '';
@@ -663,6 +667,10 @@ async function loadSettings() {
     ? 'Add at least one social link above. The reminder only appears once there is somewhere to send people.'
     : s.socials.discord ? 'Leads with your Discord link.' : 'No Discord link yet, so it leads with your first social link.';
   renderBgPreview(s.background);
+  $('logoPreview').replaceChildren(
+    s.logo ? el('img', { src: `/logo/${s.logo.file}?v=${s.logo.rev}`, alt: 'Current logo' }) : document.createTextNode('No logo yet'),
+  );
+  $('logoRemove').disabled = !s.logo;
   $('bgRemove').disabled = !s.background;
 }
 
@@ -709,6 +717,33 @@ $('bgInput').addEventListener('change', async () => {
     toast(e.message, true);
   } finally {
     $('bgInput').value = '';
+  }
+});
+
+$('logoInput').addEventListener('change', async () => {
+  const file = $('logoInput').files[0];
+  $('logoInput').value = '';
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('logo', file);
+  try {
+    await api('POST', '/settings/logo', fd);
+    toast('Logo updated. Listeners see it right away.');
+    await loadSettings();
+    refreshStatus();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+$('logoRemove').addEventListener('click', async () => {
+  if (!confirm('Remove the logo? The radio goes back to the default mark.')) return;
+  try {
+    await api('DELETE', '/settings/logo');
+    await loadSettings();
+    refreshStatus();
+  } catch (e) {
+    toast(e.message, true);
   }
 });
 

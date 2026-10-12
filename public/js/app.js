@@ -1063,6 +1063,17 @@ function applySettings(s) {
   if (JSON.stringify(prev) === JSON.stringify(s)) return;
 
   $('stationName').textContent = s.stationName;
+  // Station logo: shown in the top bar and used as the browser tab icon.
+  const logo = $('brandLogo');
+  if (s.logo) {
+    if (logo.getAttribute('src') !== s.logo) logo.src = s.logo;
+    logo.alt = `${s.stationName} logo`;
+    $('favicon').href = s.logo;
+  } else {
+    logo.removeAttribute('src');
+  }
+  logo.hidden = !s.logo;
+  $('brandMark').hidden = Boolean(s.logo);
   $('tagline').textContent = s.tagline || '';
   renderSocials($('socials'), s.socials);
   renderSocials($('drawerSocials'), s.socials);

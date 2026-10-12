@@ -265,6 +265,7 @@ class Library extends EventEmitter {
       s.reminder = r;
     }
     if ('background' in patch) s.background = patch.background;
+    if ('logo' in patch) s.logo = patch.logo; // { file, rev } or null
     this.saveSettings();
     return s;
   }
@@ -297,6 +298,7 @@ class Library extends EventEmitter {
       accent: s.accent,
       backgroundOpacity: s.backgroundOpacity,
       background: s.background ? { url: `/bg/${s.background.file}?v=${s.background.rev}`, type: s.background.type } : null,
+      logo: s.logo ? `/logo/${s.logo.file}?v=${s.logo.rev}` : null,
       socials: s.socials,
       reminder: { ...DEFAULT_SETTINGS.reminder, ...s.reminder },
     };

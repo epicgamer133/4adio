@@ -8,7 +8,7 @@ import { library, newId, LINK_KEYS, SOCIAL_KEYS } from './library.js';
 import { station } from './broadcaster.js';
 import { likes } from './likes.js';
 import { favorites } from './favorites.js';
-import { enqueueUpload, makeJpeg, makeBackgroundVideo, probe, checkFfmpeg } from './media.js';
+import { enqueueUpload, makeJpeg, makeLogoPng, makeBackgroundVideo, probe, checkFfmpeg } from './media.js';
 import { login, logout, isAdmin, requireAdmin } from './auth.js';
 
 const app = express();
@@ -195,6 +195,14 @@ app.get('/cover/:file', artworkGuard, (req, res) => {
     if (err && !res.headersSent) res.sendStatus(404);
   });
 });
+// The station logo is public branding (also the favicon), so no artwork guard.
+app.get('/logo/:file', (req, res) => {
+  if (!/^logo[a-z0-9]+\.png$/.test(req.params.file)) return res.sendStatus(404);
+  res.sendFile(path.join(paths.backgrounds, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
+    if (err && !res.headersSent) res.sendStatus(404);
+  });
+});
+
 app.get('/bg/:file', artworkGuard, (req, res) => {
   if (!SAFE_FILE.test(req.params.file)) return res.sendStatus(404);
   res.sendFile(path.join(paths.backgrounds, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
@@ -531,6 +539,33 @@ admin.post('/settings/background', upload.single('background'), async (req, res)
   } finally {
     cleanupFiles(req);
   }
+});
+
+admin.post('/settings/logo', upload.single('logo'), async (req, res) => {
+  const f = req.file;
+  if (!f || !IMAGE_EXT.test(f.originalname)) {
+    cleanupFiles(req);
+    return res.status(400).json({ error: 'Pick an image file (PNG with transparency works best).' });
+  }
+  try {
+    const file = `logo${newId()}.png`;
+    await makeLogoPng(f.path, path.join(paths.backgrounds, file));
+    const old = library.settings.logo;
+    library.updateSettings({ logo: { file, rev: Date.now() } });
+    if (old?.file) fs.rm(path.join(paths.backgrounds, old.file), { force: true }, () => {});
+    res.json({ ok: true, url: library.publicSettings().logo });
+  } catch (err) {
+    res.status(400).json({ error: `Could not read that image: ${err.message}` });
+  } finally {
+    cleanupFiles(req);
+  }
+});
+
+admin.delete('/settings/logo', (req, res) => {
+  const old = library.settings.logo;
+  library.updateSettings({ logo: null });
+  if (old?.file) fs.rm(path.join(paths.backgrounds, old.file), { force: true }, () => {});
+  res.json({ ok: true });
 });
 
 admin.delete('/settings/background', (req, res) => {

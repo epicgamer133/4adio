@@ -201,6 +201,14 @@ input[type='search'] { width: min(280px, 50vw); }
 .t-title .album-tag { color: var(--muted); }
 .likes-cell { color: #ff6b8b; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+.admin-logo { height: 34px; width: auto; max-width: 90px; object-fit: contain; border-radius: 3px; }
+.logo-editor { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.logo-preview {
+  width: 96px; height: 120px; border-radius: 12px; display: grid; place-items: center;
+  background: repeating-conic-gradient(rgba(255,255,255,.06) 0% 25%, transparent 0% 50%) 50% / 16px 16px, var(--card-2);
+  color: var(--muted); font-size: 12px; text-align: center; padding: 8px;
+}
+.logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .bulk-sep { width: 1px; height: 22px; background: rgba(255, 255, 255, 0.15); margin: 0 4px; }
 
 /* likes & favorites summary */
