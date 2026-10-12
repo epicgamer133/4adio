@@ -199,6 +199,7 @@ input[type='search'] { width: min(280px, 50vw); }
 .check-cell { width: 34px; }
 .check-cell input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
 .t-title .album-tag { color: var(--muted); }
+.likes-cell { color: #ff6b8b; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* artwork editor (song + album dialogs) */
 .art-editor { display: flex; gap: 16px; align-items: flex-start; }

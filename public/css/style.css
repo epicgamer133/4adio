@@ -218,7 +218,41 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 }
 .progress-times { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.song-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links:empty { display: none; }
+
+/* Like button */
+.like-btn {
+  --heart: #ff4d7d;
+  display: inline-flex; align-items: center; gap: 8px; position: relative;
+  height: 38px; padding: 0 16px 0 12px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--stroke); color: var(--fg);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+.like-btn:hover { background: var(--glass-strong); }
+.like-btn:active { transform: scale(0.94); }
+.like-btn svg { width: 20px; height: 20px; transition: transform 0.25s cubic-bezier(.3, 1.6, .5, 1), fill 0.2s, color 0.2s; }
+.like-btn[aria-pressed='true'] { border-color: rgba(255, 77, 125, 0.5); background: rgba(255, 77, 125, 0.14); }
+.like-btn[aria-pressed='true'] svg { fill: var(--heart); color: var(--heart); }
+.like-btn.pop svg { animation: heartPop 0.45s cubic-bezier(.3, 1.6, .5, 1); }
+.like-btn:disabled { opacity: 0.5; cursor: default; }
+@keyframes heartPop { 40% { transform: scale(1.45); } }
+
+/* Hearts tossed into the air on a like */
+.toss-heart {
+  position: fixed; z-index: 9; pointer-events: none;
+  width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  fill: #ff4d7d; stroke: none;
+  animation: toss 1.1s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+@keyframes toss {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0deg); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(var(--s)) rotate(var(--r)); }
+}
 .link-chip {
   display: inline-flex; align-items: center; gap: 8px;
   height: 34px; padding: 0 14px 0 11px; border-radius: 999px;
@@ -338,6 +372,30 @@ body.vol-low .vol-w2 { display: none; }
 .track-row b { font-weight: 500; font-size: 14.5px; }
 .track-row span { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .track-row time { font-size: 12px; color: var(--muted); flex: none; }
+.drawer-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); }
+.drawer-tabs button {
+  border: 0; background: none; color: var(--muted); height: 32px; padding: 0 14px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; transition: background 0.2s, color 0.2s;
+}
+.drawer-tabs button[aria-selected='true'] { background: rgba(255, 255, 255, 0.12); color: var(--fg); }
+
+/* Leaderboard */
+.leaderboard .track-row { gap: 10px; }
+.rank { width: 24px; flex: none; text-align: center; font-weight: 700; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.leaderboard .track-row:nth-child(1) .rank { color: #fcd34d; }
+.leaderboard .track-row:nth-child(2) .rank { color: #e5e7eb; }
+.leaderboard .track-row:nth-child(3) .rank { color: #f0a868; }
+.leaderboard .track-row.on-air { background: rgba(255, 255, 255, 0.06); }
+.mini-like {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--stroke);
+  background: none; color: var(--muted); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.mini-like svg { width: 14px; height: 14px; }
+.mini-like[aria-pressed='true'] { color: #ff4d7d; border-color: rgba(255, 77, 125, 0.45); }
+.mini-like[aria-pressed='true'] svg { fill: #ff4d7d; }
+.on-air-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: #ff4d7d; vertical-align: middle; }
+
 .drawer-socials { flex-wrap: wrap; gap: 8px; padding: 0 4px; }
 .drawer-socials .social { width: 38px; height: 38px; }
 .empty-note { color: var(--muted); font-size: 13.5px; padding: 4px 8px; }
@@ -447,7 +505,7 @@ body.vol-low .vol-w2 { display: none; }
   :root { --art: min(64vw, 36vh, 340px); }
   .stage { flex-direction: column; text-align: center; gap: 26px; padding: 84px 16px 150px; }
   .meta { width: 100%; max-width: 440px; }
-  .links { justify-content: center; }
+  .links, .song-actions { justify-content: center; }
   .hide-sm { display: none; }
   .topbar .socials { display: none; }
   .reminder { left: 16px; right: 16px; width: auto; }

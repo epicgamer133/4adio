@@ -142,6 +142,20 @@ Same honest limit as the audio: a screenshot always works. What's blocked:
   browsers answering "open in new tab" from the cached copy the page loaded.
 - Artwork URLs use random ids, so they can't be guessed. Owner's request, 2026-10-12.
 
+### Decision 12: likes and a "Most liked" leaderboard
+No accounts. Each browser gets an anonymous, HttpOnly `rs_lid` cookie, and a listener can like each
+song once; clicking again removes the like. Likes go to the song the listener is *hearing* (the
+latency-adjusted track), not the server's newest one. Ways to like: the heart beside the song info,
+double-click/double-tap the cover, or the `L` key. Liking tosses a burst of floating hearts.
+- Stored in `data/likes.json` as salted hashes only (`data/likes.salt`); no raw ids or IPs are kept.
+- Anti-farming: at most **3 likes per song per IP** (a household) and 40 like-clicks per minute per IP.
+  `POST /api/like` requires the `X-Requested-With: radio` header, so other sites can't post likes.
+- **Deployment gotcha:** the per-IP cap needs the real visitor IP, so `TRUST_PROXY` must match your
+  reverse proxy (the default `loopback` is right for nginx/Apache on the same machine; Docker uses
+  `loopback,uniquelocal`). If it's wrong, every listener shares one IP and each song caps at 3 likes.
+- The leaderboard (top 10, live) is in the side panel's "Most liked" tab; the dock's trophy button
+  opens it. Admin → Library shows a Likes column. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

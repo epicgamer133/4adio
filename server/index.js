@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import express from 'express';
 import multer from 'multer';
 import { ROOT, config, paths } from './config.js';
 import { library, newId, LINK_KEYS, SOCIAL_KEYS } from './library.js';
 import { station } from './broadcaster.js';
+import { likes } from './likes.js';
 import { enqueueUpload, makeJpeg, makeBackgroundVideo, probe, checkFfmpeg } from './media.js';
 import { login, logout, isAdmin, requireAdmin } from './auth.js';
 
@@ -73,6 +75,39 @@ setInterval(() => {
 }, 10_000);
 
 app.get('/api/state', (req, res) => res.json(station.publicState()));
+
+// --- likes ----------------------------------------------------------------------------
+// Anonymous per-browser id so a listener can like each song once. HttpOnly:
+// page scripts can't read or forge it.
+function listenerId(req, res) {
+  const m = /(?:^|;\s*)rs_lid=([A-Za-z0-9_-]{16,64})/.exec(req.headers.cookie || '');
+  if (m) return m[1];
+  const id = crypto.randomBytes(18).toString('base64url');
+  res.append('Set-Cookie', `rs_lid=${id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${config.secureCookies ? '; Secure' : ''}`);
+  return id;
+}
+
+app.get('/api/likes/mine', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ liked: likes.likedBy(listenerId(req, res)) });
+});
+
+app.post('/api/like', express.json({ limit: '2kb' }), (req, res) => {
+  // Custom header = only our own page can send this (blocks cross-site form posts).
+  if (req.get('X-Requested-With') !== 'radio') return res.status(403).json({ error: 'Forbidden' });
+  const track = library.get(String(req.body?.trackId || ''));
+  if (!track || track.status !== 'ready') return res.status(404).json({ error: 'Song not found.' });
+  const result = likes.toggle(track.id, listenerId(req, res), req.ip);
+  if (result.error) return res.status(429).json(result);
+  res.json(result);
+});
+
+// Push new counts and the leaderboard to everyone, batched.
+let likeTimer = null;
+likes.on('change', () => {
+  clearTimeout(likeTimer);
+  likeTimer = setTimeout(() => station.emitUpdate(), 300);
+});
 
 const SAFE_FILE = /^[a-z0-9]+\.(jpg|mp4)$/;
 
@@ -193,6 +228,7 @@ admin.get('/tracks', (req, res) => {
       originalName: t.originalName,
       albumId: t.albumId || null,
       coverCustom: Boolean(t.coverCustom && t.coverFile),
+      likes: likes.count(t.id),
     })),
   );
 });
@@ -336,6 +372,7 @@ admin.delete('/tracks/:id/cover', (req, res) => {
 
 admin.delete('/tracks/:id', (req, res) => {
   if (!library.remove(req.params.id)) return res.sendStatus(404);
+  likes.removeTrack(req.params.id);
   res.json({ ok: true });
 });
 

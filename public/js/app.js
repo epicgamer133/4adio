@@ -544,11 +544,168 @@ function renderLists() {
   );
 }
 
+// --- likes & leaderboard --------------------------------------------------------------------
+const HEART_PATH = 'M12 20.5s-7.5-4.6-9.3-9.4C1.6 8.2 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 5.4 3.7 4.3 6.6-1.8 4.8-9.3 9.4-9.3 9.4z';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const myLikes = new Set();
+// After a like, show the server's answer until the next live update catches up.
+const pendingCounts = new Map(); // trackId -> { count, until }
+let leaderKey = '';
+
+fetch('/api/likes/mine', { credentials: 'same-origin' })
+  .then((r) => r.json())
+  .then((d) => {
+    for (const id of d.liked || []) myLikes.add(id);
+    leaderKey = '';
+  })
+  .catch(() => {});
+
+function likeCount(tr) {
+  const p = pendingCounts.get(tr.id);
+  return p && p.until > Date.now() ? p.count : tr.likes || 0;
+}
+
+function heartSvg(cls) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  if (cls) svg.setAttribute('class', cls);
+  const p = document.createElementNS(SVG_NS, 'path');
+  p.setAttribute('d', HEART_PATH);
+  svg.append(p);
+  return svg;
+}
+
+function renderLike(tr) {
+  const btn = $('likeBtn');
+  btn.disabled = !tr;
+  const liked = Boolean(tr && myLikes.has(tr.id));
+  btn.setAttribute('aria-pressed', String(liked));
+  btn.setAttribute('aria-label', tr ? `${liked ? 'Unlike' : 'Like'} ${tr.title}` : 'Like this song');
+  $('likeCount').textContent = String(tr ? likeCount(tr) : 0);
+}
+
+/** A little burst of hearts floating up from an element. */
+function tossHearts(fromEl, n = 7) {
+  if (reducedMotion) return;
+  const r = fromEl.getBoundingClientRect();
+  for (let i = 0; i < n; i++) {
+    const h = heartSvg('toss-heart');
+    h.style.left = `${r.left + r.width / 2}px`;
+    h.style.top = `${r.top + r.height / 2}px`;
+    h.style.setProperty('--dx', `${(Math.random() - 0.5) * 150}px`);
+    h.style.setProperty('--dy', `${-(90 + Math.random() * 130)}px`);
+    h.style.setProperty('--s', (0.8 + Math.random() * 0.9).toFixed(2));
+    h.style.setProperty('--r', `${((Math.random() - 0.5) * 70).toFixed(0)}deg`);
+    h.style.animationDelay = `${i * 45}ms`;
+    document.body.append(h);
+    setTimeout(() => h.remove(), 1600);
+  }
+}
+
+async function toggleLike(id, baseCount) {
+  const wasLiked = myLikes.has(id);
+  // Optimistic: flip right away, then confirm with the server.
+  if (wasLiked) myLikes.delete(id);
+  else myLikes.add(id);
+  pendingCounts.set(id, { count: Math.max(0, baseCount + (wasLiked ? -1 : 1)), until: Date.now() + 3000 });
+  leaderKey = '';
+  renderLike(S.shown);
+  renderLeaderboard();
+  try {
+    const res = await fetch('/api/like', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' },
+      body: JSON.stringify({ trackId: id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Could not save your like. Try again.');
+    if (data.liked) myLikes.add(id);
+    else myLikes.delete(id);
+    pendingCounts.set(id, { count: data.count, until: Date.now() + 2500 });
+  } catch (err) {
+    if (wasLiked) myLikes.add(id);
+    else myLikes.delete(id);
+    pendingCounts.delete(id);
+    toast(err.message);
+  }
+  leaderKey = '';
+  renderLike(S.shown);
+  renderLeaderboard();
+}
+
+/** Like/unlike from a button; liking also tosses hearts. */
+function likeFrom(btn, id) {
+  const tr = [S.shown, ...(S.server?.leaderboard || [])].find((t) => t?.id === id);
+  if (!tr) return;
+  const willLike = !myLikes.has(id);
+  toggleLike(id, likeCount(tr));
+  if (willLike) {
+    tossHearts(btn);
+    btn.classList.remove('pop');
+    void btn.offsetWidth;
+    btn.classList.add('pop');
+  }
+}
+$('likeBtn').addEventListener('click', () => S.shown && likeFrom($('likeBtn'), S.shown.id));
+
+// Double-click / double-tap the cover to like (never un-likes, just more hearts).
+let lastArtTap = 0;
+$('art').addEventListener('pointerup', (e) => {
+  const now = performance.now();
+  if (now - lastArtTap < 320 && S.shown) {
+    lastArtTap = 0;
+    if (!myLikes.has(S.shown.id)) toggleLike(S.shown.id, likeCount(S.shown));
+    const burst = { getBoundingClientRect: () => ({ left: e.clientX, top: e.clientY, width: 0, height: 0 }) };
+    tossHearts(burst, 10);
+    $('likeBtn').classList.remove('pop');
+    void $('likeBtn').offsetWidth;
+    $('likeBtn').classList.add('pop');
+  } else {
+    lastArtTap = now;
+  }
+});
+
+function renderLeaderboard() {
+  const list = S.server?.leaderboard || [];
+  const key = JSON.stringify(list.map((t) => [t.id, likeCount(t), myLikes.has(t.id), t.cover, t.title, t.artist])) + (S.shown?.id || '');
+  if (key === leaderKey) return;
+  leaderKey = key;
+  if (!list.length) {
+    $('leaderboard').replaceChildren(el('p', { class: 'empty-note', text: "No likes yet. Tap the heart on a song you love and it'll show up here." }));
+    return;
+  }
+  $('leaderboard').replaceChildren(
+    ...list.map((t, i) => {
+      const liked = myLikes.has(t.id);
+      const btn = el('button', {
+        class: 'mini-like',
+        'aria-pressed': String(liked),
+        'aria-label': `${liked ? 'Unlike' : 'Like'} ${t.title}, ${likeCount(t)} likes`,
+      }, [heartSvg(), el('span', { text: String(likeCount(t)) })]);
+      btn.addEventListener('click', () => likeFrom(btn, t.id));
+      const onAir = S.shown?.id === t.id;
+      return el('div', { class: `track-row${onAir ? ' on-air' : ''}` }, [
+        el('span', { class: 'rank', text: String(i + 1) }),
+        thumbEl(t.cover),
+        el('div', {}, [
+          el('b', { text: t.title }, onAir ? el('span', { class: 'on-air-tag', text: 'ON AIR' }) : null),
+          el('span', { text: t.artist || 'Unknown artist' }),
+        ]),
+        btn,
+      ]);
+    }),
+  );
+}
+
 function tick() {
   measureLatency();
   const tr = heardTrack();
   if (sig(tr) !== S.shownSig) showTrack(tr);
   renderLists();
+  renderLeaderboard();
+  renderLike(tr);
   renderSync();
   if (tr) {
     const elapsed = Math.min(tr.duration, Math.max(0, (serverNow() - S.lat * 1000 - tr.startedAt) / 1000));
@@ -686,7 +843,25 @@ function toggleDrawer(open = $('drawer').hidden) {
   $('drawer').hidden = !open;
   $('queueBtn').setAttribute('aria-expanded', String(open));
 }
-$('queueBtn').addEventListener('click', () => toggleDrawer());
+
+function showDrawerTab(tab) {
+  const top = tab === 'top';
+  $('tabQueue').setAttribute('aria-selected', String(!top));
+  $('tabTop').setAttribute('aria-selected', String(top));
+  $('panelQueue').hidden = top;
+  $('panelTop').hidden = !top;
+}
+$('tabQueue').addEventListener('click', () => showDrawerTab('queue'));
+$('tabTop').addEventListener('click', () => showDrawerTab('top'));
+
+// The dock buttons open the panel on their tab; pressing one again closes it.
+function openDrawerOn(tab) {
+  const onIt = !$('drawer').hidden && $(tab === 'top' ? 'tabTop' : 'tabQueue').getAttribute('aria-selected') === 'true';
+  showDrawerTab(tab);
+  toggleDrawer(!onIt);
+}
+$('queueBtn').addEventListener('click', () => openDrawerOn('queue'));
+$('leaderBtn').addEventListener('click', () => openDrawerOn('top'));
 $('drawerClose').addEventListener('click', () => toggleDrawer(false));
 
 function toggleFullscreen() {
@@ -704,5 +879,6 @@ addEventListener('keydown', (e) => {
     else S.want ? stopListening() : startListening();
   } else if (e.key === 'f') toggleFullscreen();
   else if (e.key === 'm') toggleMute();
+  else if (e.key === 'l' && S.shown) likeFrom($('likeBtn'), S.shown.id);
   else if (e.key === 'Escape') toggleDrawer(false);
 });

@@ -4,6 +4,15 @@ import { EventEmitter } from 'node:events';
 import { config, paths } from './config.js';
 import { library, newId } from './library.js';
 import { parseFrames, silentFrame } from './mp3.js';
+import { likes } from './likes.js';
+
+const LEADERBOARD_SIZE = 10;
+
+/** A track as listeners see it, with its like count. */
+function shown(track, extra = {}) {
+  const t = library.publicTrack(track);
+  return t ? { ...t, likes: likes.count(track.id), ...extra } : null;
+}
 
 const TICK_MS = 50;
 const BURST_SECONDS = 2; // audio a new listener gets instantly so playback starts right away
@@ -243,14 +252,20 @@ class Station extends EventEmitter {
     return {
       serverTime: Date.now(),
       burstSeconds: BURST_SECONDS,
-      now: cur ? { ...library.publicTrack(cur.track), playId: cur.playId, startedAt: cur.startedAt } : null,
-      next: nextId && nextId !== cur?.track.id ? library.publicTrack(library.get(nextId)) : null,
+      now: cur ? shown(cur.track, { playId: cur.playId, startedAt: cur.startedAt }) : null,
+      next: nextId && nextId !== cur?.track.id ? shown(library.get(nextId)) : null,
       history: this.history
         .map((h) => {
           const t = library.get(h.id);
-          return t ? { ...library.publicTrack(t), playId: h.playId, startedAt: h.startedAt } : null;
+          return t ? shown(t, { playId: h.playId, startedAt: h.startedAt }) : null;
         })
         .filter(Boolean),
+      leaderboard: likes
+        .ranking()
+        .map((r) => library.get(r.id))
+        .filter((t) => t && t.status === 'ready')
+        .slice(0, LEADERBOARD_SIZE)
+        .map((t) => shown(t)),
       listeners: this.listenerCount(),
       settings: library.publicSettings(),
     };
@@ -259,7 +274,7 @@ class Station extends EventEmitter {
   adminState() {
     return {
       ...this.publicState(),
-      queue: this.queue.map((q) => ({ requestId: q.requestId, ...library.publicTrack(library.get(q.id)) })),
+      queue: this.queue.map((q) => ({ requestId: q.requestId, ...shown(library.get(q.id)) })),
       connections: this.clients.size,
       position: this.current ? (this.liveEdge() - this.current.startedAt) / 1000 : 0,
     };

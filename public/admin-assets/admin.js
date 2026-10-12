@@ -334,7 +334,7 @@ const selected = new Set();
 
 async function refreshTracks() {
   tracks = await api('GET', '/tracks');
-  const key = JSON.stringify(tracks.map((t) => [t.id, t.title, t.artist, t.album, t.albumId, t.status, t.enabled, t.cover, t.plays, Object.keys(t.links).length]));
+  const key = JSON.stringify(tracks.map((t) => [t.id, t.title, t.artist, t.album, t.albumId, t.status, t.enabled, t.cover, t.plays, t.likes, Object.keys(t.links).length]));
   if (key !== tracksKey) {
     tracksKey = key;
     for (const id of selected) if (!tracks.some((t) => t.id === id)) selected.delete(id);
@@ -405,6 +405,7 @@ function renderTracks() {
         ]),
         el('td', { class: 'hide-sm muted', text: ready ? fmt(t.duration) : '-' }),
         el('td', { class: 'hide-sm muted', text: String(t.plays) }),
+        el('td', { class: 'hide-sm likes-cell', text: t.likes ? `♥ ${t.likes}` : '-' }),
         el('td', {}, el('label', { class: 'switch' }, [toggle, el('span')])),
         el('td', {}, el('div', { class: 'actions' }, [
           el('button', { class: 'btn sm', text: 'Play next', disabled: !ready || !t.enabled, onclick: () => playNext(t) }),
