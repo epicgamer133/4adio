@@ -123,7 +123,10 @@ or Node + a sandboxed systemd service. Proxies must not buffer `/stream` or `/ev
 - Custom backgrounds are station-wide; a per-song background was considered but not built.
 - Live chat was offered and deliberately left out of v1.
 - Admin sessions live in memory, so a server restart logs the admin out.
-- Static files are cached for 1 hour, so listeners may see the old UI briefly after an update.
+- Static files are served with `Cache-Control: no-cache`, so browsers check for updates on every load.
+  (Earlier they were cached for 1 hour, which broke Tune in after the Warp-only update: a new page
+  plus an old cached script crashed on startup.)
+- Opening `public/index.html` directly from disk (`file://`) never works. Always use http://127.0.0.1:8090.
 - Google Fonts are loaded from Google; self-hosting the font would be more private.
 
 ---

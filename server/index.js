@@ -36,7 +36,14 @@ app.use((req, res, next) => {
 });
 
 // --- public: listener page, stream, now-playing events -----------------------
-app.use(express.static(config.publicDir, { index: 'index.html', extensions: ['html'], maxAge: '1h' }));
+// no-cache = the browser must check for a newer version every load (a cheap
+// 304 when nothing changed). Without it, after an update a browser can mix
+// new HTML with an old cached script, and the page breaks.
+app.use(express.static(config.publicDir, {
+  index: 'index.html',
+  extensions: ['html'],
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+}));
 
 app.get('/stream', (req, res) => station.addListener(req, res));
 
