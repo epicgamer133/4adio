@@ -1,0 +1,142 @@
+# Project notes: vision, status, and design decisions
+
+> **Status: experimental (started October 2026).**
+> The design and functionality are both still being explored. Nothing here is final:
+> the look, the feature set, and even parts of the architecture may change. Treat this as a
+> working prototype that has been tested locally, not a finished product. Read this file
+> before making changes, so new work builds on the reasoning below instead of starting over.
+
+---
+
+## 1. The idea
+
+A simple **internet radio** website. People open the page, press play, and hear whatever is on
+air, together with everyone else.
+
+What the owner asked for:
+
+| Want | Meaning |
+|---|---|
+| Join by listening | No accounts. Open the page, tune in. |
+| Add music manually | The owner uploads songs through a private admin page. |
+| Backend stays private | Listeners must not be able to download the music files from the web server. |
+| Rotation | The station pulls from the library in a randomized order and plays continuously. |
+| Synced | When someone joins, they hear the same moment as everyone else. Not "start from the beginning". |
+| Visualizers | Background visuals, generated and/or custom. |
+| Modern UI | Cover art, song title, and artist front and center. |
+| Extras | Station socials, per-song links so people can find the songs elsewhere, listener count, up next / recently played, and admin controls for requests and skipping. |
+
+### History
+
+An earlier version was built with a lower-quality AI model. This project is a **clean rebuild of
+the same concept** with a stronger architecture. Nothing from the old code was carried over, by choice.
+
+It is **standalone**: separate from the 4TUNAT website, and meant to run on its own subdomain
+(e.g. `radio.yourdomain.com`). It can be embedded into 4TUNAT later with an iframe.
+
+---
+
+## 2. How the idea is executed (the core decisions)
+
+### Decision 1: a true live broadcast, not a playlist player
+The server *is* the radio station. It reads songs, splits them into MP3 frames, and pushes those
+frames to every connected listener at exactly real-time speed, around the clock, whether or not
+anyone is listening.
+
+**Why:** this one decision delivers three of the requirements at once.
+- **Sync is automatic.** Everyone receives the same bytes at the same moment. No client-side clock tricks.
+- **Privacy.** The browser only ever sees `/stream`, one endless feed with no file URLs. Files
+  live in `data/audio/`, which is never served over HTTP.
+- **Continuous play.** The station never stops between listeners.
+
+**Rejected alternative:** serving song files with a shared "start time" so each browser seeks to
+the right spot. It's simpler, but it exposes file URLs (easy to download) and drifts between devices.
+
+**Honest limit, agreed up front:** nothing a browser can play is immune to someone recording their own
+audio output. The goal is to stop downloading and scraping, not recording.
+
+### Decision 2: normalize every upload
+On upload, ffmpeg converts every song to the same format: CBR MP3, 44.1 kHz stereo, a configurable
+bitrate (default 192k), loudness-normalized to -14 LUFS, with all tags stripped. Identical frames
+make the stream seamless between tracks. Duration is calculated from the actual frames, so progress
+bars are exact.
+
+### Decision 3: a fair shuffle
+The shuffle uses a bag model: every song plays once before any repeats, and the same song never plays
+twice in a row. New uploads join the current cycle. Admin requests go into a queue that plays before the shuffle.
+
+### Decision 4: now-playing timing per listener
+Track changes are pushed over Server-Sent Events (`/events`) with server timestamps. Each page
+estimates its clock offset from the server and measures its own buffer delay, so the cover and title
+switch at the moment *that listener* hears the new song.
+
+A new listener first gets a 2-second burst of recent audio, so playback starts instantly. If a listener
+falls more than 8 seconds behind, the page reconnects to live.
+
+### Decision 5: visualizers from the real audio
+Web Audio's AnalyserNode reads the stream; the stream is same-origin, so there are no CORS issues. Six
+canvas modes: Nebula, Spectrum, Halo, Waves, Warp, Minimal. Colors are pulled from the current cover
+art and also re-theme the UI accent. The admin can set a custom background image or video behind the visualizer.
+
+There is a fallback for browsers that output silence when a live stream goes through Web Audio:
+the page detects it and switches to direct playback.
+
+### Decision 6: keep the host server safe
+The app listens on `127.0.0.1:8090` only and is reached through a new reverse-proxy block. Existing
+sites are never touched. There are two deployment options: Docker (most isolated, ffmpeg in the container)
+or Node + a sandboxed systemd service. Proxies must not buffer `/stream` or `/events`.
+
+### Stack (deliberately small)
+- Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
+- No database: `data/library.json` and `data/settings.json`, written atomically.
+- Plain HTML/CSS/JS front end with ES modules and no build step, so experimenting is fast.
+
+---
+
+## 3. Current state
+
+**Built and tested locally (Windows PC, 2026-10-11):**
+- **Uploads:** convert correctly; tags and embedded covers are read automatically.
+- **Admin auth:** works, with a password, an HttpOnly session cookie, a CSRF header guard, and login rate limiting.
+- **Stream:** runs at exactly real time and is valid 192k MP3.
+- **Private paths:** all return 404 (audio, library, `.env`, server code).
+- **Listener page:** cover theming, visualizers, listener count, track changes, up next and history.
+
+**Not yet tested:**
+- iPhone/Safari behavior (the Web Audio fallback has not been tested on a real device).
+- Many simultaneous listeners.
+- A real production deploy behind nginx/Apache with HTTPS.
+
+**Known rough edges / ideas under consideration:**
+- The design is a first pass. Layout, typography, and the visualizer look are open to change.
+- Custom backgrounds are station-wide; a per-song background was considered but not built.
+- Live chat was offered and deliberately left out of v1.
+- Admin sessions live in memory, so a server restart logs the admin out.
+- Static files are cached for 1 hour, so listeners may see the old UI briefly after an update.
+- Google Fonts are loaded from Google; self-hosting the font would be more private.
+
+---
+
+## 4. Where things are
+
+```
+server/broadcaster.js  the station: real-time frame pacing, shuffle bag, queue, listeners
+server/mp3.js          MP3 frame parser + silent frame (used when the library is empty)
+server/media.js        ffmpeg/ffprobe: transcode, covers, background video, upload queue
+server/library.js      library + settings storage, input cleaning, public views of data
+server/auth.js         admin login/session/rate limit
+server/index.js        routes, security headers, SSE, admin API
+public/js/app.js       listener page: playback, sync timing, UI, reconnects
+public/js/visualizer.js  the six visualizer modes
+public/js/palette.js   cover-art color extraction
+views/admin.html + public/admin-assets/   admin panel
+deploy/                nginx, Apache, systemd configs
+start-local.bat        double-click to run locally on Windows
+```
+
+**Local dev:** `start-local.bat`, then http://127.0.0.1:8090 (radio) and `/admin`.
+The `.env` file (admin password, ffmpeg paths) and `data/` (songs) are **gitignored on purpose**.
+Never commit them.
+
+**Workflow:** build and experiment locally → push to GitHub (`epicgamer133/4adio`) → pull onto the
+web server later and follow the README deploy steps.
