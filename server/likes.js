@@ -39,22 +39,32 @@ function loadSalt() {
   }
 }
 
-function loadTotals() {
+function loadData() {
   try {
     const data = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    if (data.totals) return data.totals;
+    if (data.totals) return data;
     // Older format ({ trackId: { listener: ip } }): one like per listener.
-    return Object.fromEntries(Object.entries(data).map(([id, set]) => [id, Object.keys(set).length]));
+    return { totals: Object.fromEntries(Object.entries(data).map(([id, set]) => [id, Object.keys(set).length])) };
   } catch {
     return {};
   }
 }
 
+/** Calendar day on the server, e.g. "2026-10-12". */
+const today = () => new Date().toLocaleDateString('en-CA');
+
 class Likes extends EventEmitter {
   constructor() {
     super();
     this.salt = loadSalt();
-    this.totals = loadTotals(); // trackId -> all-time likes
+    const data = loadData();
+    this.totals = data.totals || {}; // trackId -> all-time likes
+    this.days = data.days || {}; // "YYYY-MM-DD" -> likes that day (admin stats)
+    this.hypeDays = data.hypeDays || {}; // "YYYY-MM-DD" -> hype trains that day
+    this.record = data.record || null; // biggest hype train: { level, trackId, at }
+    // Changes whenever counts are reset, so listener pages know to drop
+    // their cached (only-ever-increasing) numbers.
+    this.epoch = Date.now();
     this.plays = new Map(); // playId -> { trackId, count, level }
     this.buckets = new Map(); // hashed key -> { tokens, at }
     this.pending = new Map(); // playId -> taps since the last broadcast
@@ -75,7 +85,12 @@ class Likes extends EventEmitter {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       const tmp = `${FILE}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ totals: this.totals }));
+      // Keep about two months of daily stats.
+      for (const key of [this.days, this.hypeDays]) {
+        const dates = Object.keys(key).sort();
+        for (const d of dates.slice(0, Math.max(0, dates.length - 62))) delete key[d];
+      }
+      fs.writeFileSync(tmp, JSON.stringify({ totals: this.totals, days: this.days, hypeDays: this.hypeDays, record: this.record }));
       fs.renameSync(tmp, FILE);
     }, 1500);
   }
@@ -117,6 +132,7 @@ class Likes extends EventEmitter {
     if (!added) return { added: 0, total: this.count(trackId) };
 
     this.totals[trackId] = this.count(trackId) + added;
+    this.days[today()] = (this.days[today()] || 0) + added;
     const play = this.plays.get(playId);
     if (play && play.trackId === trackId) {
       play.count += added;
@@ -124,6 +140,8 @@ class Likes extends EventEmitter {
       while (play.count >= goalAt(play.level)) {
         const goal = goalAt(play.level);
         play.level++;
+        this.hypeDays[today()] = (this.hypeDays[today()] || 0) + 1;
+        if (!this.record || play.level > this.record.level) this.record = { level: play.level, trackId, at: Date.now() };
         this.emit('hype', { playId, trackId, level: play.level, goal, count: play.count });
       }
       this.pending.set(playId, (this.pending.get(playId) || 0) + added);
@@ -160,6 +178,43 @@ class Likes extends EventEmitter {
     if (!(trackId in this.totals)) return;
     delete this.totals[trackId];
     this.save();
+  }
+
+  /** Admin: zero one song's likes (and its live like goal). */
+  reset(trackId) {
+    delete this.totals[trackId];
+    for (const p of this.plays.values()) if (p.trackId === trackId) Object.assign(p, { count: 0, level: 0 });
+    if (this.record?.trackId === trackId) this.record = null;
+    this.epoch = Date.now();
+    this.save();
+    this.emit('batch', []);
+  }
+
+  /** Admin: a clean slate for every song, including daily stats and the record. */
+  resetAll() {
+    this.totals = {};
+    this.days = {};
+    this.hypeDays = {};
+    this.record = null;
+    for (const p of this.plays.values()) Object.assign(p, { count: 0, level: 0 });
+    this.epoch = Date.now();
+    this.save();
+    this.emit('batch', []);
+  }
+
+  stats() {
+    const d = today();
+    return {
+      totalLikes: Object.values(this.totals).reduce((a, b) => a + b, 0),
+      likesToday: this.days[d] || 0,
+      hypeToday: this.hypeDays[d] || 0,
+      record: this.record,
+      // Last 14 days, oldest first, for a small chart.
+      daily: Array.from({ length: 14 }, (_, i) => {
+        const day = new Date(Date.now() - (13 - i) * 86_400_000).toLocaleDateString('en-CA');
+        return { day, likes: this.days[day] || 0, hype: this.hypeDays[day] || 0 };
+      }),
+    };
   }
 
   /** [{ id, likes }] most liked first. */

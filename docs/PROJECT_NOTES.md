@@ -166,15 +166,30 @@ Same honest limit as the audio: a screenshot always works. What's blocked:
 
 ### Decision 13: private favorites
 Separate from likes on purpose: **likes are public hype, favorites are a personal bookmark.**
-- Stored only in the listener's browser (`localStorage` key `radio.favorites`), never sent to the server,
-  and invisible to other listeners and the admin. Trade-off: they don't follow you to another device or
-  browser, and clearing site data erases them. Moving them server-side (keyed by the anonymous `rs_lid`
+- The list lives in the listener's browser (`localStorage` key `radio.favorites`). **Update (same day):**
+  for the admin summary, pages now also report favorites anonymously (`POST /api/favorite`, plus a full
+  `POST /api/favorites/sync` on load) so the server can keep "saved by N people" per song in
+  `data/favorites.json`. Listeners are stored only as salted hashes of the anonymous `rs_lid` cookie: the
+  admin sees counts, never who. The listener note says exactly that. Trade-off: they don't follow you to
+  another device or browser, and clearing site data erases them. Moving them server-side (keyed by the anonymous `rs_lid`
   cookie, or real accounts) would be the next step if cross-device favorites are ever wanted.
 - Star button next to the heart (or `S`); stars on Up next, History and Most liked rows too.
 - Side panel "Favorites" tab: saved songs with artwork, "Listen on" icons, ON AIR / UP NEXT tags, and
   greyed "No longer on the station" for removed songs. Details refresh via `GET /api/tracks?ids=...`
   (public info for playable songs only).
 - A toast says when a favorite comes on; Up next shows a FAVORITE tag. Owner's request, 2026-10-12.
+
+### Decision 14: admin "Likes & favorites" summary, resets, bulk delete
+- New admin tab. Cards: total likes (today / this week), favorites (and how many listeners saved any),
+  hype trains today (and in the last 14 days), and the record hype train. Then a song table with likes,
+  favorites, plays and likes per play, sortable, refreshed every 5 s while open.
+- Daily stats (`days`, `hypeDays`, `record` in `data/likes.json`, about 2 months kept) started counting on
+  2026-10-12. Likes from before that are in the totals but not in any day.
+- **Reset likes** per song, or **Reset all likes** (also clears daily stats and the record). Favorites are never
+  touched. A `likesEpoch` in the live state tells listener pages to drop their cached counts (they only ever
+  go up while tapping, to avoid flicker).
+- Library: tick songs, then **Delete selected** (`POST /api/admin/tracks/delete`), which also removes
+  their likes and favorite counts. Owner's request, 2026-10-12.
 
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.

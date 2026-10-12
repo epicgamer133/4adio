@@ -261,6 +261,7 @@ class Station extends EventEmitter {
           return t ? shown(t, { playId: h.playId, startedAt: h.startedAt, hype: likes.playInfo(h.playId) }) : null;
         })
         .filter(Boolean),
+      likesEpoch: likes.epoch,
       leaderboard: likes
         .ranking()
         .map((r) => library.get(r.id))

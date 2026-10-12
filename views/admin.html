@@ -31,6 +31,7 @@
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="dashboard" aria-selected="true">On air</button>
         <button role="tab" data-tab="library" aria-selected="false">Library</button>
+        <button role="tab" data-tab="engagement" aria-selected="false">Likes &amp; favorites</button>
         <button role="tab" data-tab="settings" aria-selected="false">Station</button>
       </nav>
       <div class="top-actions">
@@ -115,6 +116,8 @@
         <span class="muted small">Move to</span>
         <select id="bulkAlbum" aria-label="Album to move selected songs into"></select>
         <button class="btn sm primary" id="bulkMove">Move</button>
+        <span class="bulk-sep" aria-hidden="true"></span>
+        <button class="btn sm ghost danger" id="bulkDelete">Delete selected</button>
         <button class="btn sm ghost" id="bulkClear">Clear selection</button>
       </div>
       <div class="table-wrap card">
@@ -126,6 +129,36 @@
         </table>
         <p class="muted empty" id="libraryEmpty" hidden>No songs yet. Drop some in above.</p>
       </div>
+    </main>
+
+    <!-- Likes & favorites -->
+    <main class="panel" data-panel="engagement" hidden>
+      <div class="stat-grid" id="statGrid"></div>
+
+      <section class="card mt">
+        <div class="row between">
+          <h3 class="no-m">Songs</h3>
+          <div class="row gap">
+            <select id="engSort" aria-label="Sort songs by">
+              <option value="likes">Most liked</option>
+              <option value="favorites">Most favorited</option>
+              <option value="plays">Most played</option>
+              <option value="rate">Most likes per play</option>
+            </select>
+            <button class="btn sm ghost danger" id="resetAllLikes">Reset all likes</button>
+          </div>
+        </div>
+        <p class="muted small">Favorites are private to each listener; you only see how many people saved each song, never who. Resetting likes clears the song's count and the leaderboard; favorites are untouched.</p>
+        <div class="table-wrap">
+          <table class="tracks eng-table">
+            <thead>
+              <tr><th></th><th>Song</th><th>Likes</th><th>Favorites</th><th class="hide-sm">Plays</th><th class="hide-sm">Likes / play</th><th></th></tr>
+            </thead>
+            <tbody id="engRows"></tbody>
+          </table>
+          <p class="muted empty" id="engEmpty" hidden>No songs yet.</p>
+        </div>
+      </section>
     </main>
 
     <!-- Station settings -->

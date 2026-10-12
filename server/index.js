@@ -7,6 +7,7 @@ import { ROOT, config, paths } from './config.js';
 import { library, newId, LINK_KEYS, SOCIAL_KEYS } from './library.js';
 import { station } from './broadcaster.js';
 import { likes } from './likes.js';
+import { favorites } from './favorites.js';
 import { enqueueUpload, makeJpeg, makeBackgroundVideo, probe, checkFfmpeg } from './media.js';
 import { login, logout, isAdmin, requireAdmin } from './auth.js';
 
@@ -116,6 +117,36 @@ app.post('/api/like', express.json({ limit: '2kb' }), (req, res) => {
     listenerId: listenerId(req, res),
     ip: req.ip,
   }));
+});
+
+// Favorites stay in the listener's browser; these only keep an anonymous
+// "saved by N people" count per song for the admin summary.
+function favoriteGuard(req, res) {
+  if (req.get('X-Requested-With') !== 'radio') {
+    res.status(403).json({ error: 'Forbidden' });
+    return false;
+  }
+  if (!likes.take(`f:${likes.hash(req.ip)}`, 1, { cap: 60, perSec: 3 })) {
+    res.status(429).json({ error: 'Slow down a little.' });
+    return false;
+  }
+  return true;
+}
+const isPlayableId = (id) => library.get(id)?.status === 'ready';
+
+app.post('/api/favorite', express.json({ limit: '2kb' }), (req, res) => {
+  if (!favoriteGuard(req, res)) return;
+  const id = String(req.body?.trackId || '');
+  if (!isPlayableId(id)) return res.status(404).json({ error: 'Song not found.' });
+  favorites.set(listenerId(req, res), id, Boolean(req.body?.on));
+  res.json({ ok: true });
+});
+
+app.post('/api/favorites/sync', express.json({ limit: '32kb' }), (req, res) => {
+  if (!favoriteGuard(req, res)) return;
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+  favorites.sync(listenerId(req, res), ids, isPlayableId);
+  res.json({ ok: true });
 });
 
 function sendEvent(name, data) {
@@ -403,6 +434,60 @@ admin.delete('/tracks/:id/cover', (req, res) => {
 admin.delete('/tracks/:id', (req, res) => {
   if (!library.remove(req.params.id)) return res.sendStatus(404);
   likes.removeTrack(req.params.id);
+  favorites.removeTrack(req.params.id);
+  res.json({ ok: true });
+});
+
+/** Delete several songs at once. */
+admin.post('/tracks/delete', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+  let deleted = 0;
+  for (const id of ids) {
+    if (library.remove(id)) {
+      likes.removeTrack(id);
+      favorites.removeTrack(id);
+      deleted++;
+    }
+  }
+  station.emitUpdate();
+  res.json({ deleted });
+});
+
+// --- engagement summary: likes + favorites ----------------------------------------------
+admin.get('/engagement', (req, res) => {
+  const s = likes.stats();
+  const recordTrack = s.record && library.get(s.record.trackId);
+  res.json({
+    totalLikes: s.totalLikes,
+    likesToday: s.likesToday,
+    hypeToday: s.hypeToday,
+    record: s.record ? { level: s.record.level, at: s.record.at, title: recordTrack?.title || 'Removed song' } : null,
+    totalFavorites: favorites.total(),
+    favoritingListeners: favorites.uniqueListeners(),
+    daily: s.daily,
+    songs: library.tracks
+      .filter((t) => t.status === 'ready')
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        cover: library.publicTrack(t).cover,
+        plays: t.plays || 0,
+        likes: likes.count(t.id),
+        favorites: favorites.count(t.id),
+      })),
+  });
+});
+
+/** Body: { trackId } to reset one song's likes, or { all: true } for everything. */
+admin.post('/likes/reset', (req, res) => {
+  if (req.body?.all === true) likes.resetAll();
+  else {
+    const id = String(req.body?.trackId || '');
+    if (!library.get(id)) return res.sendStatus(404);
+    likes.reset(id);
+  }
+  station.emitUpdate();
   res.json({ ok: true });
 });
 

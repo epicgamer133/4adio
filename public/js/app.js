@@ -615,6 +615,7 @@ function toggleFav(tr, fromBtn) {
     if (fromBtn) popStar(fromBtn);
   }
   saveFavorites();
+  reportFavorite(tr.id, isFav(tr.id));
   S.listKey = '';
   leaderKey = '';
   favKey = '';
@@ -622,6 +623,20 @@ function toggleFav(tr, fromBtn) {
   renderFavorites();
 }
 $('favBtn').addEventListener('click', () => toggleFav(S.shown, $('favBtn')));
+
+// The station only learns *how many* people saved each song (an anonymous
+// count for the admin), never who. Failures don't matter: the list itself
+// lives here, and the next page load re-syncs.
+const FAV_HEADERS = { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' };
+function reportFavorite(trackId, on) {
+  fetch('/api/favorite', { method: 'POST', credentials: 'same-origin', headers: FAV_HEADERS, body: JSON.stringify({ trackId, on }) }).catch(() => {});
+}
+fetch('/api/favorites/sync', {
+  method: 'POST',
+  credentials: 'same-origin',
+  headers: FAV_HEADERS,
+  body: JSON.stringify({ ids: favorites.map((f) => f.id) }),
+}).catch(() => {});
 
 function renderFavButton(tr) {
   const btn = $('favBtn');
@@ -727,7 +742,17 @@ function bumpPlay(playId, info) {
 }
 
 /** Server state carries counts too; fold them in. */
+let likesEpoch = null;
 function absorbLikeState(st) {
+  // The admin reset likes: start over from the server's numbers.
+  if (st.likesEpoch !== likesEpoch) {
+    if (likesEpoch !== null) {
+      totals.clear();
+      plays.clear();
+      leaderKey = '';
+    }
+    likesEpoch = st.likesEpoch;
+  }
   for (const t of [st.now, st.next, ...(st.history || []), ...(st.leaderboard || [])]) {
     if (!t) continue;
     bumpTotal(t.id, t.likes || 0);

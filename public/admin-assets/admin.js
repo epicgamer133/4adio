@@ -721,4 +721,130 @@ $('bgRemove').addEventListener('click', async () => {
   }
 });
 
+// --- likes & favorites summary ------------------------------------------------------------
+let engagement = null;
+let engKey = '';
+const ICON = {
+  heart: 'M12 20.5s-7.5-4.6-9.3-9.4C1.6 8.2 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 5.4 3.7 4.3 6.6-1.8 4.8-9.3 9.4-9.3 9.4z',
+  star: 'M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z',
+  train: 'M6 16V7a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v9M6 12h12M8 20l-2 2M16 20l2 2M9 16.5h.01M15 16.5h.01',
+  people: 'M16 19v-1a4 4 0 0 0-8 0v1M12 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 19v-1a3 3 0 0 0-2.4-2.9M17 4.2a3 3 0 0 1 0 5.6',
+};
+function icon(path) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', path);
+  svg.append(p);
+  return svg;
+}
+const num = (n) => Number(n || 0).toLocaleString();
+
+function statCard(kind, iconPath, label, value, sub) {
+  return el('div', { class: `stat-card ${kind}` }, [
+    el('span', { class: 'label' }, [icon(iconPath), el('span', { text: label })]),
+    el('span', { class: 'value', text: value }),
+    sub ? el('span', { class: 'sub', text: sub }) : null,
+  ]);
+}
+
+async function refreshEngagement() {
+  engagement = await api('GET', '/engagement');
+  renderEngagement();
+}
+
+function renderEngagement() {
+  const e = engagement;
+  if (!e) return;
+  const sort = $('engSort').value;
+  const key = JSON.stringify([e, sort]);
+  if (key === engKey) return;
+  engKey = key;
+
+  const week = e.daily.slice(-7).reduce((n, d) => n + d.likes, 0);
+  $('statGrid').replaceChildren(
+    statCard('likes', ICON.heart, 'Total likes', num(e.totalLikes), `${num(e.likesToday)} today · ${num(week)} this week`),
+    statCard('favs', ICON.star, 'Favorites', num(e.totalFavorites), `saved by ${num(e.favoritingListeners)} listener${e.favoritingListeners === 1 ? '' : 's'}`),
+    statCard('hype', ICON.train, 'Hype trains today', num(e.hypeToday), `${num(e.daily.reduce((n, d) => n + d.hype, 0))} in the last 14 days`),
+    statCard('hype', ICON.train, 'Record hype train', e.record ? `Lv ${e.record.level}` : '-', e.record ? `${e.record.title} · ${new Date(e.record.at).toLocaleDateString()}` : 'No hype trains yet'),
+  );
+
+  const rate = (s) => (s.plays ? s.likes / s.plays : 0);
+  const songs = [...e.songs].sort((a, b) =>
+    sort === 'favorites' ? b.favorites - a.favorites || b.likes - a.likes
+    : sort === 'plays' ? b.plays - a.plays
+    : sort === 'rate' ? rate(b) - rate(a)
+    : b.likes - a.likes || b.favorites - a.favorites,
+  );
+  $('engEmpty').hidden = songs.length > 0;
+  $('engRows').replaceChildren(
+    ...songs.map((s) => {
+      const thumb = el('span');
+      if (s.cover) thumb.style.backgroundImage = `url("${s.cover}")`;
+      return el('tr', {}, [
+        el('td', { class: 'thumb-cell' }, thumb),
+        el('td', { class: 't-title' }, [el('b', { text: s.title }), el('span', { text: s.artist || 'Unknown artist' })]),
+        el('td', { class: 'num likes', text: s.likes ? `♥ ${num(s.likes)}` : '-' }),
+        el('td', { class: 'num favs', text: s.favorites ? `★ ${num(s.favorites)}` : '-' }),
+        el('td', { class: 'num muted hide-sm', text: num(s.plays) }),
+        el('td', { class: 'num muted hide-sm', text: s.plays ? rate(s).toFixed(1) : '-' }),
+        el('td', {}, el('div', { class: 'actions' }, [
+          el('button', { class: 'btn sm ghost danger', text: 'Reset likes', disabled: !s.likes, onclick: () => resetLikes(s) }),
+        ])),
+      ]);
+    }),
+  );
+}
+$('engSort').addEventListener('change', renderEngagement);
+
+async function resetLikes(s) {
+  if (!confirm(`Reset all ${num(s.likes)} likes on "${s.title}"? This can't be undone.`)) return;
+  try {
+    await api('POST', '/likes/reset', { trackId: s.id });
+    toast(`Likes reset for "${s.title}"`);
+    refreshEngagement();
+    refreshTracks();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+$('resetAllLikes').addEventListener('click', async () => {
+  const total = engagement?.totalLikes || 0;
+  if (!confirm(`Reset ALL likes on every song (${num(total)} total), the leaderboard, daily stats and the hype train record? Favorites are not affected. This can't be undone.`)) return;
+  try {
+    await api('POST', '/likes/reset', { all: true });
+    toast('All likes reset');
+    refreshEngagement();
+    refreshTracks();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// Load when the tab opens, and keep it fresh while it's visible.
+document.querySelector('[data-tab=engagement]').addEventListener('click', () => refreshEngagement().catch((e) => toast(e.message, true)));
+setInterval(() => {
+  if (!document.querySelector('[data-panel=engagement]').hidden && !$('appView').hidden) refreshEngagement().catch(() => {});
+}, 5000);
+
+// --- bulk delete (Library) --------------------------------------------------------------------
+$('bulkDelete').addEventListener('click', async () => {
+  const ids = [...selected];
+  if (!ids.length) return;
+  const names = tracks.filter((t) => selected.has(t.id)).map((t) => `• ${t.title}`);
+  const preview = names.slice(0, 8).join('\n') + (names.length > 8 ? `\n…and ${names.length - 8} more` : '');
+  if (!confirm(`Delete ${ids.length} song${ids.length === 1 ? '' : 's'} from the station? Their files, likes and favorite counts are removed. This can't be undone.\n\n${preview}`)) return;
+  try {
+    const { deleted } = await api('POST', '/tracks/delete', { ids });
+    selected.clear();
+    toast(`Deleted ${deleted} song${deleted === 1 ? '' : 's'}`);
+    await refreshTracks();
+    refreshAlbums();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 boot().catch((e) => toast(e.message, true));
