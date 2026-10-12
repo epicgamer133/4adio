@@ -76,7 +76,7 @@ async function boot() {
   $('loginView').hidden = true;
   $('appView').hidden = false;
   buildStaticFields();
-  await Promise.all([refreshStatus(), refreshTracks(), loadSettings()]);
+  await Promise.all([refreshStatus(), refreshTracks(), refreshAlbums(), loadSettings()]);
   clearInterval(pollTimer);
   let n = 0;
   pollTimer = setInterval(() => {
@@ -169,14 +169,179 @@ $('skipBtn').addEventListener('click', async () => {
   }
 });
 
+// --- albums -----------------------------------------------------------------------------
+let albums = [];
+let albumFilter = null; // album id, 'none' for songs without an album, or null for all
+let albumsKey = '';
+
+async function refreshAlbums() {
+  albums = await api('GET', '/albums');
+  const key = JSON.stringify(albums);
+  if (key === albumsKey) return;
+  albumsKey = key;
+  renderAlbums();
+  fillAlbumSelects();
+  renderTracks();
+}
+
+function albumOptions(select, { auto = false, none = 'No album' } = {}) {
+  const current = select.value;
+  select.replaceChildren(
+    ...(auto ? [el('option', { value: '', text: 'Album from song tags (automatic)' })] : [el('option', { value: '', text: none })]),
+    ...albums.map((a) => el('option', { value: a.id, text: a.artist ? `${a.title} · ${a.artist}` : a.title })),
+  );
+  if ([...select.options].some((o) => o.value === current)) select.value = current;
+}
+
+function fillAlbumSelects() {
+  albumOptions($('uploadAlbum'), { auto: true });
+  albumOptions($('bulkAlbum'), { none: 'No album (ungroup)' });
+  albumOptions($('editAlbum'));
+}
+
+function renderAlbums() {
+  const looseCount = tracks.filter((t) => !t.albumId).length;
+  const cards = albums.map((a) =>
+    el('div', { class: `album${albumFilter === a.id ? ' active' : ''}` }, [
+      el('button', { class: 'album-art', title: 'Replace artwork', 'aria-label': `Replace artwork for ${a.title}`, onclick: () => pickAlbumCover(a) },
+        a.cover ? el('img', { src: a.cover, alt: '' }) : el('span', { text: 'Add artwork' })),
+      el('button', { class: 'album-meta', title: 'Show this album\'s songs', onclick: () => setAlbumFilter(albumFilter === a.id ? null : a.id) }, [
+        el('b', { text: a.title }),
+        el('span', { text: `${a.artist ? `${a.artist} · ` : ''}${a.trackCount} song${a.trackCount === 1 ? '' : 's'}` }),
+      ]),
+      el('div', { class: 'album-actions' }, [
+        el('button', { class: 'btn sm ghost', text: 'Edit', onclick: () => openAlbumDialog(a) }),
+        el('button', { class: 'btn sm ghost danger', text: 'Delete', onclick: () => removeAlbum(a) }),
+      ]),
+    ]),
+  );
+  if (looseCount) {
+    cards.push(
+      el('div', { class: `album loose${albumFilter === 'none' ? ' active' : ''}` }, [
+        el('button', { class: 'album-art', title: 'Show songs without an album', onclick: () => setAlbumFilter(albumFilter === 'none' ? null : 'none') }, el('span', { text: 'Singles' })),
+        el('button', { class: 'album-meta', onclick: () => setAlbumFilter(albumFilter === 'none' ? null : 'none') }, [
+          el('b', { text: 'No album' }),
+          el('span', { text: `${looseCount} song${looseCount === 1 ? '' : 's'}` }),
+        ]),
+      ]),
+    );
+  }
+  $('albumGrid').replaceChildren(...(cards.length ? cards : [el('p', { class: 'empty-note', text: 'No albums yet. Create one, or upload songs that have an album tag.' })]));
+}
+
+function setAlbumFilter(id) {
+  albumFilter = id;
+  const album = albums.find((a) => a.id === id);
+  $('albumFilter').hidden = !id;
+  $('albumFilterName').textContent = id === 'none' ? 'No album' : album?.title || '';
+  selected.clear();
+  renderAlbums();
+  renderTracks();
+}
+$('albumFilterClear').addEventListener('click', () => setAlbumFilter(null));
+
+// Replace an album's artwork straight from its card.
+let albumCoverTarget = null;
+function pickAlbumCover(a) {
+  albumCoverTarget = a;
+  $('albumCoverInput').value = '';
+  $('albumCoverInput').click();
+}
+$('albumCoverInput').addEventListener('change', async () => {
+  const file = $('albumCoverInput').files[0];
+  if (!file || !albumCoverTarget) return;
+  const fd = new FormData();
+  fd.append('cover', file);
+  try {
+    await api('POST', `/albums/${albumCoverTarget.id}/cover`, fd);
+    toast(`Artwork updated for "${albumCoverTarget.title}"`);
+    await refreshAlbums();
+    refreshTracks();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+async function removeAlbum(a) {
+  if (!confirm(`Delete the album "${a.title}"? Its ${a.trackCount} song(s) stay in your library, just without an album.`)) return;
+  try {
+    await api('DELETE', `/albums/${a.id}`);
+    if (albumFilter === a.id) setAlbumFilter(null);
+    toast('Album deleted');
+    await refreshAlbums();
+    refreshTracks();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// Create / edit dialog
+let editingAlbum = null;
+let albumArtFile = null;
+function setAlbumPreview(src) {
+  const box = $('albumArtPreview');
+  box.querySelector('img')?.remove();
+  box.querySelector('span').hidden = Boolean(src);
+  if (src) box.append(el('img', { src, alt: '' }));
+}
+function openAlbumDialog(a = null) {
+  editingAlbum = a;
+  albumArtFile = null;
+  $('albumArtInput').value = '';
+  $('albumDialogTitle').textContent = a ? 'Edit album' : 'New album';
+  const f = $('albumForm').elements;
+  f.title.value = a?.title || '';
+  f.artist.value = a?.artist || '';
+  setAlbumPreview(a?.cover || null);
+  $('albumDialog').showModal();
+}
+$('newAlbumBtn').addEventListener('click', () => openAlbumDialog());
+$('albumArtInput').addEventListener('change', () => {
+  albumArtFile = $('albumArtInput').files[0] || null;
+  if (albumArtFile) setAlbumPreview(URL.createObjectURL(albumArtFile));
+});
+$('albumDialog').addEventListener('close', async () => {
+  if ($('albumDialog').returnValue !== 'save') return;
+  const f = $('albumForm').elements;
+  try {
+    let id = editingAlbum?.id;
+    if (editingAlbum) {
+      await api('PATCH', `/albums/${id}`, { title: f.title.value, artist: f.artist.value });
+    } else {
+      const fd = new FormData();
+      fd.append('title', f.title.value);
+      fd.append('artist', f.artist.value);
+      if (albumArtFile) fd.append('cover', albumArtFile);
+      id = (await api('POST', '/albums', fd)).id;
+      albumArtFile = null;
+    }
+    if (albumArtFile) {
+      const fd = new FormData();
+      fd.append('cover', albumArtFile);
+      await api('POST', `/albums/${id}/cover`, fd);
+    }
+    toast(editingAlbum ? 'Album saved' : `Album "${f.title.value}" created`);
+    await refreshAlbums();
+    refreshTracks();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
 // --- library --------------------------------------------------------------------------
 let tracksKey = '';
+const selected = new Set();
+
 async function refreshTracks() {
   tracks = await api('GET', '/tracks');
-  const key = JSON.stringify(tracks.map((t) => [t.id, t.title, t.artist, t.status, t.enabled, t.cover, t.plays, Object.keys(t.links).length]));
+  const key = JSON.stringify(tracks.map((t) => [t.id, t.title, t.artist, t.album, t.albumId, t.status, t.enabled, t.cover, t.plays, Object.keys(t.links).length]));
   if (key !== tracksKey) {
     tracksKey = key;
+    for (const id of selected) if (!tracks.some((t) => t.id === id)) selected.delete(id);
     renderTracks();
+    // Album song counts and auto-created albums change with the library.
+    refreshAlbums().catch(() => {});
+    renderAlbums();
   }
 }
 
@@ -189,12 +354,25 @@ function markPlaying() {
   }
 }
 
-function renderTracks() {
+function shownTracks() {
   const q = $('search').value.trim().toLowerCase();
-  const list = tracks
+  return tracks
+    .filter((t) => !albumFilter || (albumFilter === 'none' ? !t.albumId : t.albumId === albumFilter))
     .filter((t) => !q || `${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(q))
     .sort((a, b) => b.addedAt - a.addedAt);
-  $('trackCount').textContent = tracks.length;
+}
+
+function updateBulkBar() {
+  $('bulkBar').hidden = selected.size === 0;
+  $('bulkCount').textContent = `${selected.size} selected`;
+  const shown = shownTracks();
+  $('selectAll').checked = shown.length > 0 && shown.every((t) => selected.has(t.id));
+  $('selectAll').indeterminate = !$('selectAll').checked && shown.some((t) => selected.has(t.id));
+}
+
+function renderTracks() {
+  const list = shownTracks();
+  $('trackCount').textContent = albumFilter ? `${list.length} of ${tracks.length}` : tracks.length;
   $('libraryEmpty').hidden = tracks.length > 0;
 
   $('trackRows').replaceChildren(
@@ -209,11 +387,19 @@ function renderTracks() {
       toggle.addEventListener('change', () =>
         api('PATCH', `/tracks/${t.id}`, { enabled: toggle.checked }).then(refreshTracks).catch((e) => toast(e.message, true)),
       );
+      const pick = el('input', { type: 'checkbox', checked: selected.has(t.id), 'aria-label': `Select ${t.title}` });
+      pick.addEventListener('change', () => {
+        if (pick.checked) selected.add(t.id);
+        else selected.delete(t.id);
+        updateBulkBar();
+      });
       return el('tr', { 'data-id': t.id }, [
-        el('td', { class: 'cover-cell' }, el('button', { class: 'cover-btn', title: 'Change cover', 'aria-label': `Change cover for ${t.title}`, onclick: () => pickCover(t) }, t.cover ? el('img', { src: t.cover, alt: '' }) : null)),
+        el('td', { class: 'check-cell' }, pick),
+        el('td', { class: 'cover-cell' }, el('button', { class: 'cover-btn', title: 'Artwork & details', 'aria-label': `Edit artwork for ${t.title}`, onclick: () => openEdit(t) }, t.cover ? el('img', { src: t.cover, alt: '' }) : null)),
         el('td', { class: 't-title' }, [
           el('b', { text: t.title }, badge),
-          el('span', { text: [t.artist || 'Unknown artist', t.album].filter(Boolean).join(' · ') }),
+          el('span', { text: t.artist || 'Unknown artist' }),
+          t.album ? el('span', { class: 'album-tag', text: ` · ${t.album}` }) : null,
           linkCount ? el('span', { class: 'links-count', text: ` · ${linkCount} link${linkCount > 1 ? 's' : ''}` }) : null,
           t.status === 'error' ? el('div', { class: 'small muted', text: t.error || '' }) : null,
         ]),
@@ -228,9 +414,35 @@ function renderTracks() {
       ]);
     }),
   );
+  updateBulkBar();
   markPlaying();
 }
 $('search').addEventListener('input', renderTracks);
+
+$('selectAll').addEventListener('change', () => {
+  for (const t of shownTracks()) {
+    if ($('selectAll').checked) selected.add(t.id);
+    else selected.delete(t.id);
+  }
+  renderTracks();
+});
+$('bulkClear').addEventListener('click', () => {
+  selected.clear();
+  renderTracks();
+});
+$('bulkMove').addEventListener('click', async () => {
+  const albumId = $('bulkAlbum').value || null;
+  try {
+    const { moved } = await api('POST', '/tracks/album', { ids: [...selected], albumId });
+    const name = albums.find((a) => a.id === albumId)?.title;
+    toast(albumId ? `Moved ${moved} song(s) into "${name}"` : `Removed ${moved} song(s) from their album`);
+    selected.clear();
+    await refreshTracks();
+    refreshAlbums();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
 
 async function playNext(t) {
   try {
@@ -253,26 +465,6 @@ async function removeTrack(t) {
   }
 }
 
-let coverTarget = null;
-function pickCover(t) {
-  coverTarget = t;
-  $('coverInput').value = '';
-  $('coverInput').click();
-}
-$('coverInput').addEventListener('change', async () => {
-  const file = $('coverInput').files[0];
-  if (!file || !coverTarget) return;
-  const fd = new FormData();
-  fd.append('cover', file);
-  try {
-    await api('POST', `/tracks/${coverTarget.id}/cover`, fd);
-    toast('Cover updated');
-    refreshTracks();
-  } catch (e) {
-    toast(e.message, true);
-  }
-});
-
 // --- uploads ----------------------------------------------------------------------------
 const uploadQueue = [];
 let uploading = false;
@@ -283,7 +475,8 @@ function addFiles(files) {
     const state = el('span', { class: 'state', text: 'Waiting' });
     const row = el('div', { class: 'upload' }, [el('span', { class: 'name', text: file.name }), bar, state]);
     $('uploads').prepend(row);
-    uploadQueue.push({ file, row, bar, state });
+    // Remember the album chosen at drop time, even if the picker changes later.
+    uploadQueue.push({ file, row, bar, state, albumId: $('uploadAlbum').value || null });
   }
   pumpUploads();
 }
@@ -294,6 +487,7 @@ function pumpUploads() {
   const job = uploadQueue.shift();
   const fd = new FormData();
   fd.append('audio', job.file);
+  if (job.albumId) fd.append('albumId', job.albumId);
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/admin/tracks');
   xhr.setRequestHeader('X-Requested-With', 'radio-admin');
@@ -370,10 +564,54 @@ function openEdit(t) {
   const f = $('editForm').elements;
   f.title.value = t.title;
   f.artist.value = t.artist || '';
-  f.album.value = t.album || '';
+  albumOptions($('editAlbum'));
+  f.albumId.value = t.albumId || '';
   for (const k of linkKeys) f[`link_${k}`].value = t.links[k] || '';
+  renderEditArt(t);
   $('editDialog').showModal();
 }
+
+/** Artwork section of the Edit dialog: shows what listeners see and where it comes from. */
+function renderEditArt(t) {
+  const album = albums.find((a) => a.id === t.albumId);
+  $('editArtPreview').replaceChildren(t.cover ? el('img', { src: t.cover, alt: '' }) : el('span', { text: 'No artwork' }));
+  $('editArtNote').textContent = t.coverCustom
+    ? 'This song uses its own artwork.'
+    : album?.cover
+      ? `Using the artwork of the album "${album.title}".`
+      : t.cover
+        ? 'Using the artwork embedded in the song file.'
+        : 'No artwork yet. Upload one, or add the song to an album that has artwork.';
+  $('editArtReset').hidden = !(t.coverCustom && album?.cover);
+}
+
+$('editArtInput').addEventListener('change', async () => {
+  const file = $('editArtInput').files[0];
+  $('editArtInput').value = '';
+  if (!file || !editing) return;
+  const fd = new FormData();
+  fd.append('cover', file);
+  try {
+    await api('POST', `/tracks/${editing.id}/cover`, fd);
+    await refreshTracks();
+    editing = tracks.find((t) => t.id === editing.id) || editing;
+    renderEditArt(editing);
+    toast('Artwork updated');
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+$('editArtReset').addEventListener('click', async () => {
+  try {
+    await api('DELETE', `/tracks/${editing.id}/cover`);
+    await refreshTracks();
+    editing = tracks.find((t) => t.id === editing.id) || editing;
+    renderEditArt(editing);
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
 
 $('editDialog').addEventListener('close', async () => {
   if ($('editDialog').returnValue !== 'save' || !editing) return;
@@ -381,7 +619,7 @@ $('editDialog').addEventListener('close', async () => {
   const links = {};
   for (const k of linkKeys) links[k] = f[`link_${k}`].value.trim();
   try {
-    await api('PATCH', `/tracks/${editing.id}`, { title: f.title.value, artist: f.artist.value, album: f.album.value, links });
+    await api('PATCH', `/tracks/${editing.id}`, { title: f.title.value, artist: f.artist.value, albumId: f.albumId.value || null, links });
     toast('Saved');
     refreshTracks();
   } catch (e) {

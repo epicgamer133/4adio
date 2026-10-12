@@ -177,6 +177,17 @@ async function processJob({ id, tmpPath, coverTmpPath, meta }) {
     status: 'ready',
     error: null,
   });
+
+  // Group into an album: the one picked at upload, else the one named in the tags.
+  const updated = library.get(id);
+  let albumId = library.getAlbum(meta.albumId)?.id || null;
+  if (!albumId && updated.album) {
+    albumId = library.findOrCreateAlbum(updated.album, t.album_artist || updated.artist).id;
+  }
+  if (albumId) {
+    library.update(id, { albumId });
+    library.adoptCover(albumId, library.get(id));
+  }
   console.log(`[media] ready: ${library.get(id).artist} - ${library.get(id).title} (${duration.toFixed(1)}s)`);
 }
 

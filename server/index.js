@@ -173,8 +173,86 @@ admin.get('/tracks', (req, res) => {
       addedAt: t.addedAt,
       lastPlayedAt: t.lastPlayedAt || null,
       originalName: t.originalName,
+      albumId: t.albumId || null,
+      coverCustom: Boolean(t.coverCustom && t.coverFile),
     })),
   );
+});
+
+// --- albums -------------------------------------------------------------------------
+admin.get('/albums', (req, res) => {
+  res.json(library.albums.map((a) => library.adminAlbum(a)).sort((a, b) => a.title.localeCompare(b.title)));
+});
+
+async function saveAlbumCover(album, file) {
+  const name = `a${album.id}.jpg`;
+  await makeJpeg(file.path, path.join(paths.covers, name));
+  library.updateAlbum(album.id, { coverFile: name, coverRev: Date.now() });
+}
+
+admin.post('/albums', upload.single('cover'), async (req, res) => {
+  if (req.file && !IMAGE_EXT.test(req.file.originalname)) {
+    cleanupFiles(req);
+    return res.status(400).json({ error: 'Artwork must be an image.' });
+  }
+  const album = library.addAlbum({ title: req.body.title, artist: req.body.artist });
+  try {
+    if (req.file) await saveAlbumCover(album, req.file);
+    res.json(library.adminAlbum(album));
+  } catch (err) {
+    res.status(400).json({ error: `Album created, but the artwork could not be read: ${err.message}` });
+  } finally {
+    cleanupFiles(req);
+  }
+});
+
+admin.patch('/albums/:id', (req, res) => {
+  const album = library.updateAlbum(req.params.id, { ...('title' in req.body && { title: req.body.title }), ...('artist' in req.body && { artist: req.body.artist }) });
+  if (!album) return res.sendStatus(404);
+  // Keep each song's album name in step with a rename.
+  for (const t of library.tracks) if (t.albumId === album.id) t.album = album.title;
+  library.saveTracks();
+  station.emitUpdate();
+  res.json(library.adminAlbum(album));
+});
+
+admin.post('/albums/:id/cover', upload.single('cover'), async (req, res) => {
+  const album = library.getAlbum(req.params.id);
+  if (!album || !req.file || !IMAGE_EXT.test(req.file.originalname)) {
+    cleanupFiles(req);
+    return res.status(400).json({ error: 'Pick an image file.' });
+  }
+  try {
+    await saveAlbumCover(album, req.file);
+    station.emitUpdate();
+    res.json(library.adminAlbum(album));
+  } catch (err) {
+    res.status(400).json({ error: `Could not read that image: ${err.message}` });
+  } finally {
+    cleanupFiles(req);
+  }
+});
+
+admin.delete('/albums/:id', (req, res) => {
+  if (!library.removeAlbum(req.params.id)) return res.sendStatus(404);
+  station.emitUpdate();
+  res.json({ ok: true });
+});
+
+/** Move several songs into an album at once (albumId null = ungroup). */
+admin.post('/tracks/album', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+  const albumId = req.body?.albumId ? String(req.body.albumId) : null;
+  if (albumId && !library.getAlbum(albumId)) return res.status(400).json({ error: 'Album not found.' });
+  let moved = 0;
+  for (const id of ids) {
+    if (library.update(id, { albumId })) {
+      moved++;
+      if (albumId) library.adoptCover(albumId, library.get(id));
+    }
+  }
+  station.emitUpdate();
+  res.json({ moved });
 });
 
 admin.post('/tracks', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res) => {
@@ -196,6 +274,7 @@ admin.post('/tracks', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'co
       title: String(req.body.title || '').trim(),
       artist: String(req.body.artist || '').trim(),
       album: String(req.body.album || '').trim(),
+      albumId: String(req.body.albumId || '').trim() || null,
       links: parseJsonField(req.body.links),
     },
   });
@@ -204,7 +283,7 @@ admin.post('/tracks', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'co
 
 admin.patch('/tracks/:id', (req, res) => {
   const allowed = {};
-  for (const key of ['title', 'artist', 'album', 'enabled', 'links']) if (key in req.body) allowed[key] = req.body[key];
+  for (const key of ['title', 'artist', 'albumId', 'enabled', 'links']) if (key in req.body) allowed[key] = req.body[key];
   const track = library.update(req.params.id, allowed);
   if (!track) return res.sendStatus(404);
   station.emitUpdate();
@@ -220,7 +299,7 @@ admin.post('/tracks/:id/cover', upload.single('cover'), async (req, res) => {
   try {
     const file = `${track.id}.jpg`;
     await makeJpeg(req.file.path, path.join(paths.covers, file));
-    library.update(track.id, { coverFile: file, coverRev: Date.now() });
+    library.update(track.id, { coverFile: file, coverRev: Date.now(), coverCustom: true });
     station.emitUpdate();
     res.json({ ok: true });
   } catch (err) {
@@ -228,6 +307,13 @@ admin.post('/tracks/:id/cover', upload.single('cover'), async (req, res) => {
   } finally {
     cleanupFiles(req);
   }
+});
+
+/** Drop a song's hand-uploaded artwork so it uses its album's artwork again. */
+admin.delete('/tracks/:id/cover', (req, res) => {
+  if (!library.update(req.params.id, { coverCustom: false })) return res.sendStatus(404);
+  station.emitUpdate();
+  res.json({ ok: true });
 });
 
 admin.delete('/tracks/:id', (req, res) => {

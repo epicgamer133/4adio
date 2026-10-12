@@ -113,6 +113,17 @@ The cover tilts toward the mouse or finger (up to 16°) with a moving glossy ref
 behind it for sleeve thickness, and a shadow that falls away from the raised edge. It eases back to
 flat when the pointer leaves, and is off for reduced-motion users. Owner's request, 2026-10-12.
 
+### Decision 9: albums group songs and share artwork
+Albums are stored next to tracks in `library.json` (`albums: [{id, title, artist, coverFile}]`, with
+`albumId` on each track). Songs join an album in three ways: picked at upload ("Put new uploads in"),
+matched automatically from the album tag in the file (the album is created if missing), or moved later
+(Edit dialog, or tick several songs and use the bulk "Move to" bar). Deleting an album keeps its songs, ungrouped.
+
+Artwork priority for what listeners see: **artwork uploaded for that one song > album artwork > cover
+embedded in the file.** An album without artwork adopts the first embedded cover it gets. The Edit
+dialog's Artwork section says which source is in use and can reset a song to its album's artwork.
+Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

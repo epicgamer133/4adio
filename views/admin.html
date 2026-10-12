@@ -76,28 +76,56 @@
 
     <!-- Library -->
     <main class="panel" data-panel="library" hidden>
-      <label class="dropzone" id="dropzone">
+      <!-- Albums -->
+      <section class="card">
+        <div class="row between">
+          <h3 class="no-m">Albums</h3>
+          <button class="btn sm primary" id="newAlbumBtn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            New album
+          </button>
+        </div>
+        <p class="muted small">Songs in an album share its artwork. Albums are also created automatically from song tags. Click artwork to replace it.</p>
+        <div class="albums" id="albumGrid"></div>
+      </section>
+
+      <!-- Upload -->
+      <label class="dropzone mt" id="dropzone">
         <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.opus,.aif,.aiff" multiple hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <b>Drop songs here or click to choose</b>
         <span class="muted small">MP3, WAV, FLAC, M4A, OGG, OPUS, AIFF. Title, artist and embedded cover art are read automatically. Everything is converted for the stream and stored privately.</span>
       </label>
+      <div class="row gap upload-target">
+        <span class="muted small">Put new uploads in</span>
+        <select id="uploadAlbum" aria-label="Album for new uploads"></select>
+      </div>
       <div id="uploads" class="uploads"></div>
 
+      <!-- Songs -->
       <div class="row between mt">
-        <h3 class="no-m"><span id="trackCount">0</span> tracks</h3>
+        <div class="row gap">
+          <h3 class="no-m"><span id="trackCount">0</span> songs</h3>
+          <span class="chip" id="albumFilter" hidden><span id="albumFilterName"></span><button aria-label="Show all songs" id="albumFilterClear">&times;</button></span>
+        </div>
         <input type="search" id="search" placeholder="Search library" aria-label="Search library">
+      </div>
+      <div class="bulk" id="bulkBar" hidden>
+        <b id="bulkCount">0 selected</b>
+        <span class="muted small">Move to</span>
+        <select id="bulkAlbum" aria-label="Album to move selected songs into"></select>
+        <button class="btn sm primary" id="bulkMove">Move</button>
+        <button class="btn sm ghost" id="bulkClear">Clear selection</button>
       </div>
       <div class="table-wrap card">
         <table class="tracks">
           <thead>
-            <tr><th></th><th>Title</th><th class="hide-sm">Duration</th><th class="hide-sm">Plays</th><th>In rotation</th><th></th></tr>
+            <tr><th class="check-cell"><input type="checkbox" id="selectAll" aria-label="Select all shown songs"></th><th></th><th>Title</th><th class="hide-sm">Duration</th><th class="hide-sm">Plays</th><th>In rotation</th><th></th></tr>
           </thead>
           <tbody id="trackRows"></tbody>
         </table>
         <p class="muted empty" id="libraryEmpty" hidden>No songs yet. Drop some in above.</p>
       </div>
-      <input type="file" id="coverInput" accept="image/*" hidden>
     </main>
 
     <!-- Station settings -->
@@ -140,12 +168,27 @@
   <!-- Edit track -->
   <dialog id="editDialog">
     <form method="dialog" id="editForm" class="card dialog-card">
-      <h3>Edit track</h3>
+      <h3>Edit song</h3>
       <label>Title <input name="title" required maxlength="200"></label>
       <div class="row gap">
         <label class="grow">Artist <input name="artist" maxlength="200"></label>
-        <label class="grow">Album <input name="album" maxlength="200"></label>
+        <label class="grow">Album <select name="albumId" id="editAlbum"></select></label>
       </div>
+
+      <h3 class="mt">Artwork</h3>
+      <div class="art-editor">
+        <div class="art-preview" id="editArtPreview"></div>
+        <div class="art-editor-side">
+          <p class="muted small" id="editArtNote"></p>
+          <div class="row gap">
+            <label class="btn sm file-btn">Upload artwork for this song
+              <input type="file" id="editArtInput" accept="image/*" hidden>
+            </label>
+            <button type="button" class="btn sm ghost" id="editArtReset" hidden>Use album artwork</button>
+          </div>
+        </div>
+      </div>
+
       <h3 class="mt">Where to find this song</h3>
       <p class="muted small">Shown as "Listen on" buttons while the song plays.</p>
       <div id="linkFields" class="link-fields"></div>
@@ -156,6 +199,28 @@
     </form>
   </dialog>
 
+  <!-- Create / edit album -->
+  <dialog id="albumDialog">
+    <form method="dialog" id="albumForm" class="card dialog-card">
+      <h3 id="albumDialogTitle">New album</h3>
+      <div class="art-editor">
+        <label class="art-preview art-pick" id="albumArtPreview" title="Choose artwork">
+          <input type="file" id="albumArtInput" accept="image/*" hidden>
+          <span>Choose artwork</span>
+        </label>
+        <div class="art-editor-side grow">
+          <label>Album title <input name="title" required maxlength="200"></label>
+          <label>Artist <input name="artist" maxlength="200"></label>
+        </div>
+      </div>
+      <div class="row gap end mt">
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" value="save">Save album</button>
+      </div>
+    </form>
+  </dialog>
+
+  <input type="file" id="albumCoverInput" accept="image/*" hidden>
   <div class="toast" id="toast" role="status" hidden></div>
   <script type="module" src="/admin-assets/admin.js"></script>
 </body>
