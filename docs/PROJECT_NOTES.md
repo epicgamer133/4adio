@@ -202,6 +202,17 @@ branding and the favicon). It replaces the spinning mark top-left (72px tall, 52
 beat pulse and accent glow), becomes the browser tab icon, and shows in the admin header. The current
 logo is the owner's "4TUNAT 17+" rating-badge design (set 2026-10-12).
 
+### Decision 16: live theme editor
+Admin → Station → Theme. `settings.theme = { mode, accent, accent2, accent3, background, surface, text }`.
+- **mode "cover"** (default): colors follow each song's artwork, and the theme colors are the fallback for songs
+  without art. **mode "fixed"**: always the theme colors (Warp, accents, glows).
+- Listener CSS derives everything from `--bg`, `--fg`, `--surface` and the accents with `color-mix()`
+  (muted text, glass panels, strokes, vignette), so six colors restyle the whole page.
+- Changes are live: color pickers send a debounced `PATCH /settings {theme}` (300 ms), the server broadcasts
+  settings over SSE, and every listener restyles without a reload. Presets: 4TUNAT Purple (default), Sunset,
+  Ocean, Toxic, Blood Moon, Mono. The admin UI also adopts the accent. The old single `accent` setting is
+  folded into `theme.accent`. Owner's request, 2026-10-12.
+
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
 - No database: `data/library.json` and `data/settings.json`, written atomically.

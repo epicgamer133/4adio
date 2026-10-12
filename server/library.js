@@ -14,6 +14,17 @@ const DEFAULT_SETTINGS = {
   background: null, // { file, type: 'image' | 'video', rev }
   backgroundOpacity: 0.35,
   socials: {},
+  // Site colors. mode "cover": colors follow each song's artwork (these are
+  // the fallback). mode "fixed": always these colors.
+  theme: {
+    mode: 'cover',
+    accent: '#8b5cf6',
+    accent2: '#ec4899',
+    accent3: '#3b82f6',
+    background: '#07060b',
+    surface: '#12101c',
+    text: '#f5f3ff',
+  },
   // Small, dismissible "come hang out" card on the listener page.
   reminder: {
     enabled: true,
@@ -246,7 +257,19 @@ class Library extends EventEmitter {
     const s = this.settings;
     if ('stationName' in patch) s.stationName = cleanText(patch.stationName, 80) || s.stationName;
     if ('tagline' in patch) s.tagline = cleanText(patch.tagline, 160);
-    if ('accent' in patch && /^#[0-9a-f]{6}$/i.test(patch.accent)) s.accent = patch.accent;
+    if ('accent' in patch && /^#[0-9a-f]{6}$/i.test(patch.accent)) {
+      s.accent = patch.accent;
+      s.theme = { ...DEFAULT_SETTINGS.theme, ...s.theme, accent: patch.accent };
+    }
+    if (patch.theme && typeof patch.theme === 'object') {
+      const t = { ...DEFAULT_SETTINGS.theme, ...s.theme };
+      for (const key of ['accent', 'accent2', 'accent3', 'background', 'surface', 'text']) {
+        if (/^#[0-9a-f]{6}$/i.test(patch.theme[key] || '')) t[key] = patch.theme[key].toLowerCase();
+      }
+      if (['cover', 'fixed'].includes(patch.theme.mode)) t.mode = patch.theme.mode;
+      s.theme = t;
+      s.accent = t.accent;
+    }
     if ('backgroundOpacity' in patch) {
       const o = Number(patch.backgroundOpacity);
       if (Number.isFinite(o)) s.backgroundOpacity = Math.min(1, Math.max(0, o));
@@ -301,6 +324,8 @@ class Library extends EventEmitter {
       logo: s.logo ? `/logo/${s.logo.file}?v=${s.logo.rev}` : null,
       socials: s.socials,
       reminder: { ...DEFAULT_SETTINGS.reminder, ...s.reminder },
+      // Older settings files only had one accent color; carry it into the theme.
+      theme: { ...DEFAULT_SETTINGS.theme, accent: s.accent || DEFAULT_SETTINGS.theme.accent, ...s.theme },
     };
   }
 }

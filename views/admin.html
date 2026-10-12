@@ -168,9 +168,30 @@
           <h3>Station</h3>
           <label>Station name <input name="stationName" maxlength="80" required></label>
           <label>Tagline <input name="tagline" maxlength="160"></label>
-          <label>Accent color (used when a song has no cover)
-            <input type="color" name="accent">
-          </label>
+
+          <h3 class="mt">Theme</h3>
+          <p class="muted small">Changes apply to everyone listening as you adjust them; no need to press Save.</p>
+          <div class="theme-modes" role="radiogroup" aria-label="Color mode">
+            <label class="theme-mode"><input type="radio" name="themeMode" value="cover">
+              <span><b>Match each song's cover</b><small>Colors shift with the artwork. Yours are used when a song has none.</small></span>
+            </label>
+            <label class="theme-mode"><input type="radio" name="themeMode" value="fixed">
+              <span><b>Fixed colors</b><small>Always your colors below, whatever is playing.</small></span>
+            </label>
+          </div>
+          <div class="presets" id="themePresets" aria-label="Theme presets"></div>
+          <div class="theme-colors" id="themeColors"></div>
+          <div class="theme-preview" id="themePreview" aria-hidden="true">
+            <div class="tp-card">
+              <span class="tp-art"></span>
+              <div><b>Now playing</b><span>Artist name</span><i class="tp-bar"></i></div>
+              <span class="tp-play"></span>
+            </div>
+          </div>
+          <div class="row gap">
+            <button type="button" class="btn sm ghost" id="themeReset">Reset to default</button>
+            <span class="muted small" id="themeStatus"></span>
+          </div>
 
           <h3 class="mt">Logo</h3>
           <p class="muted small">Shown at the top-left of the radio and used as the browser tab icon. PNG with a transparent background works best; any shape is fine.</p>

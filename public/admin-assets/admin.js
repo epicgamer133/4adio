@@ -650,7 +650,7 @@ async function loadSettings() {
   const f = $('settingsForm');
   f.stationName.value = s.stationName;
   f.tagline.value = s.tagline || '';
-  f.accent.value = s.accent;
+  loadTheme(s.theme || { accent: s.accent });
   f.backgroundOpacity.value = s.backgroundOpacity;
   for (const k of socialKeys) f[`social_${k}`].value = s.socials?.[k] || '';
   const r = s.reminder || {};
@@ -683,7 +683,6 @@ $('settingsForm').addEventListener('submit', async (e) => {
     await api('PATCH', '/settings', {
       stationName: f.stationName.value,
       tagline: f.tagline.value,
-      accent: f.accent.value,
       backgroundOpacity: Number(f.backgroundOpacity.value),
       socials,
       reminder: {
@@ -719,6 +718,115 @@ $('bgInput').addEventListener('change', async () => {
     $('bgInput').value = '';
   }
 });
+
+// --- theme (live: every change is pushed to listeners right away) ---------------------------
+const THEME_DEFAULT = { mode: 'cover', accent: '#8b5cf6', accent2: '#ec4899', accent3: '#3b82f6', background: '#07060b', surface: '#12101c', text: '#f5f3ff' };
+const THEME_FIELDS = [
+  ['accent', 'Primary accent', 'Buttons, progress, glow'],
+  ['accent2', 'Secondary accent', 'Gradient partner'],
+  ['accent3', 'Visualizer highlight', 'Extra Warp streak color'],
+  ['background', 'Background', 'Page base'],
+  ['surface', 'Panels', 'Glass bars and cards'],
+  ['text', 'Text', 'Titles and labels'],
+];
+const THEME_PRESETS = [
+  { name: '4TUNAT Purple', theme: { ...THEME_DEFAULT } },
+  { name: 'Sunset', theme: { mode: 'fixed', accent: '#ff6b35', accent2: '#ff2e63', accent3: '#ffd23f', background: '#120806', surface: '#24130d', text: '#fff4ec' } },
+  { name: 'Ocean', theme: { mode: 'fixed', accent: '#22d3ee', accent2: '#3b82f6', accent3: '#a7f3d0', background: '#040b14', surface: '#0b1a2a', text: '#ecfeff' } },
+  { name: 'Toxic', theme: { mode: 'fixed', accent: '#a3e635', accent2: '#22c55e', accent3: '#facc15', background: '#060a04', surface: '#111a0c', text: '#f7fee7' } },
+  { name: 'Blood Moon', theme: { mode: 'fixed', accent: '#ef4444', accent2: '#b91c1c', accent3: '#f97316', background: '#0a0404', surface: '#1c0a0a', text: '#fff1f1' } },
+  { name: 'Mono', theme: { mode: 'fixed', accent: '#e5e5e5', accent2: '#8a8a8a', accent3: '#ffffff', background: '#080808', surface: '#171717', text: '#fafafa' } },
+];
+let theme = { ...THEME_DEFAULT };
+let themeTimer = null;
+let themeBuilt = false;
+
+function buildThemeEditor() {
+  if (themeBuilt) return;
+  themeBuilt = true;
+  $('themePresets').replaceChildren(
+    ...THEME_PRESETS.map((p) => {
+      const b = el('button', { type: 'button', class: 'preset', title: `Apply the ${p.name} theme` }, [el('i'), el('span', { text: p.name })]);
+      b.querySelector('i').style.background = `linear-gradient(135deg, ${p.theme.accent}, ${p.theme.accent2})`;
+      b.addEventListener('click', () => {
+        theme = { ...p.theme };
+        syncThemeInputs();
+        queueThemeSave(`${p.name} applied`);
+      });
+      return b;
+    }),
+  );
+  $('themeColors').replaceChildren(
+    ...THEME_FIELDS.map(([key, label, hint]) => {
+      const input = el('input', { type: 'color', 'data-key': key, 'aria-label': label });
+      input.addEventListener('input', () => {
+        theme[key] = input.value;
+        syncThemeInputs();
+        queueThemeSave();
+      });
+      return el('label', { class: 'color-field', title: hint }, [input, el('span', {}, [el('b', { text: label }), el('small', { 'data-hex': key })])]);
+    }),
+  );
+  for (const r of document.querySelectorAll('input[name=themeMode]')) {
+    r.addEventListener('change', () => {
+      theme.mode = r.value;
+      queueThemeSave(r.value === 'fixed' ? 'Fixed colors on' : 'Following each song\'s cover');
+    });
+  }
+  $('themeReset').addEventListener('click', () => {
+    theme = { ...THEME_DEFAULT };
+    syncThemeInputs();
+    queueThemeSave('Back to the default theme');
+  });
+}
+
+function syncThemeInputs() {
+  for (const r of document.querySelectorAll('input[name=themeMode]')) r.checked = r.value === theme.mode;
+  for (const [key] of THEME_FIELDS) {
+    const input = document.querySelector(`#themeColors input[data-key="${key}"]`);
+    if (input && input.value !== theme[key]) input.value = theme[key];
+    const hex = document.querySelector(`#themeColors [data-hex="${key}"]`);
+    if (hex) hex.textContent = theme[key].toUpperCase();
+  }
+  // Preview card, and the admin itself picks up the accents.
+  const p = $('themePreview');
+  p.style.background = theme.background;
+  p.style.color = theme.text;
+  const card = p.querySelector('.tp-card');
+  card.style.background = `color-mix(in srgb, ${theme.surface} 80%, transparent)`;
+  card.style.border = `1px solid color-mix(in srgb, ${theme.text} 10%, transparent)`;
+  const grad = `linear-gradient(135deg, ${theme.accent}, ${theme.accent2})`;
+  p.querySelector('.tp-art').style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent3})`;
+  p.querySelector('.tp-bar').style.background = `linear-gradient(90deg, ${theme.accent}, ${theme.accent2})`;
+  p.querySelector('.tp-play').style.background = grad;
+  document.documentElement.style.setProperty('--accent', theme.accent);
+  document.documentElement.style.setProperty('--accent-2', theme.accent2);
+}
+
+function loadTheme(t) {
+  buildThemeEditor();
+  // Don't clobber colors the admin is mid-way through dragging.
+  if (themeTimer) return;
+  theme = { ...THEME_DEFAULT, ...t };
+  syncThemeInputs();
+}
+
+/** Push the theme a moment after the last change (dragging a color fires many events). */
+function queueThemeSave(message) {
+  clearTimeout(themeTimer);
+  $('themeStatus').textContent = 'Updating...';
+  themeTimer = setTimeout(async () => {
+    try {
+      await api('PATCH', '/settings', { theme });
+      $('themeStatus').textContent = message ? `${message}. Live for listeners.` : 'Live for listeners.';
+    } catch (e) {
+      $('themeStatus').textContent = '';
+      toast(e.message, true);
+    } finally {
+      themeTimer = null;
+    }
+  }, 300);
+}
 
 $('logoInput').addEventListener('change', async () => {
   const file = $('logoInput').files[0];

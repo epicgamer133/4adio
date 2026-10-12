@@ -1,5 +1,5 @@
 import { Visualizer } from './visualizer.js';
-import { extractPalette, paletteFromAccent } from './palette.js';
+import { extractPalette, paletteFromAccent, hexToRgb } from './palette.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -428,6 +428,26 @@ function swapText(node, text) {
   node.classList.add('swap');
 }
 
+/** Cover colors in "cover" mode (when the song has art), otherwise the admin's theme colors. */
+function applyActivePalette() {
+  setPalette(S.themeMode === 'cover' && S.coverPalette ? S.coverPalette : S.accentPalette);
+}
+
+/** Site colors from the admin's Theme settings; changes arrive live. */
+function applyTheme(t) {
+  const hex = (v, fallback) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback);
+  const accent = hex(t.accent, '#8b5cf6');
+  S.themeMode = t.mode === 'fixed' ? 'fixed' : 'cover';
+  S.accentPalette = t.accent2
+    ? [hexToRgb(accent), hexToRgb(hex(t.accent2, '#ec4899')), hexToRgb(hex(t.accent3, '#3b82f6'))]
+    : paletteFromAccent(accent);
+  root.style.setProperty('--bg', hex(t.background, '#07060b'));
+  root.style.setProperty('--fg', hex(t.text, '#f5f3ff'));
+  root.style.setProperty('--surface', hex(t.surface, '#12101c'));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', hex(t.background, '#07060b'));
+  applyActivePalette();
+}
+
 function setPalette(pal) {
   viz.setPalette(pal);
   const css = (c) => `rgb(${c.map((v) => v | 0).join(',')})`;
@@ -452,7 +472,8 @@ function showTrack(tr) {
     $('artEmpty').hidden = false;
     $('coverWash').style.backgroundImage = '';
     $('links').replaceChildren();
-    setPalette(S.accentPalette);
+    S.coverPalette = null;
+    applyActivePalette();
     document.title = stationName;
     return;
   }
@@ -478,17 +499,19 @@ function showTrack(tr) {
       $('artEmpty').hidden = true;
       $('coverWash').style.backgroundImage = `url("${tr.cover}")`;
       try {
-        setPalette(extractPalette(img) || S.accentPalette);
+        S.coverPalette = extractPalette(img);
       } catch {
-        setPalette(S.accentPalette);
+        S.coverPalette = null;
       }
+      applyActivePalette();
     };
     img.src = tr.cover;
   } else {
     $('cover').hidden = true;
     $('artEmpty').hidden = false;
     $('coverWash').style.backgroundImage = '';
-    setPalette(S.accentPalette);
+    S.coverPalette = null;
+    applyActivePalette();
   }
 
   $('links').replaceChildren(
@@ -1078,8 +1101,7 @@ function applySettings(s) {
   renderSocials($('socials'), s.socials);
   renderSocials($('drawerSocials'), s.socials);
   $('drawerFollow').hidden = !Object.keys(s.socials || {}).length;
-  S.accentPalette = paletteFromAccent(s.accent || '#8b5cf6');
-  if (!S.shown?.cover) setPalette(S.accentPalette);
+  applyTheme(s.theme || { mode: 'cover', accent: s.accent || '#8b5cf6' });
   root.style.setProperty('--bg-opacity', String(s.backgroundOpacity ?? 0.35));
 
   const bgUrl = s.background?.url || null;
