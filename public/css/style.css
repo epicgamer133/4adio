@@ -166,8 +166,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .dock {
   position: fixed; z-index: 6; left: 50%; bottom: max(20px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  display: flex; align-items: center; gap: 14px;
-  padding: 8px 10px 8px 8px;
+  /* Equal side columns keep the play button dead center. */
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 8px 12px;
   border-radius: 999px;
   background: var(--glass-strong); border: 1px solid var(--stroke);
   backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
@@ -190,11 +192,11 @@ body.loading .play-btn svg { display: none; }
 body.loading .play-btn .spinner { display: block; }
 .spinner { grid-area: 1 / 1; width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin 0.8s linear infinite; }
 
-.volume { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.volume { display: flex; align-items: center; gap: 8px; color: var(--muted); min-width: 0; }
 .volume svg { width: 20px; height: 20px; flex: none; }
 .volume input { width: 96px; accent-color: var(--accent); cursor: pointer; }
 
-.dock-end { display: flex; gap: 4px; }
+.dock-end { display: flex; gap: 4px; justify-content: flex-end; }
 .icon-btn {
   width: 38px; height: 38px; border: 0; border-radius: 50%;
   display: grid; place-items: center; background: none; color: var(--muted);
@@ -288,8 +290,7 @@ body.loading .play-btn .spinner { display: block; }
   .links { justify-content: center; }
   .hide-sm { display: none; }
   .topbar .socials { display: none; }
-  .dock { width: calc(100vw - 32px); justify-content: space-between; }
-  .volume input { width: clamp(70px, 30vw, 140px); }
+  .volume input { width: 100%; min-width: 0; }
 }
 @media (max-height: 560px) and (min-width: 861px) {
   :root { --art: min(52vh, 300px); }
