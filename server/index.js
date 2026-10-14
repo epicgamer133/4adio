@@ -182,6 +182,9 @@ function artworkGuard(req, res, next) {
   // Without Vary, a browser that already showed the cover on the page would
   // answer "open image in new tab" from its cache and never ask us.
   res.setHeader('Vary', 'Sec-Fetch-Dest, Sec-Fetch-Site');
+  // private: a shared cache (e.g. Cloudflare) must not keep a copy, or it would answer
+  // direct requests itself and this check would never run.
+  res.setHeader('Cache-Control', 'private, max-age=2592000, immutable');
   const dest = req.get('Sec-Fetch-Dest');
   const site = req.get('Sec-Fetch-Site');
   if (dest === 'document' || dest === 'iframe' || site === 'cross-site') return res.sendStatus(403);
@@ -191,7 +194,7 @@ function artworkGuard(req, res, next) {
 app.get('/cover/:file', artworkGuard, (req, res) => {
   if (!SAFE_FILE.test(req.params.file)) return res.sendStatus(404);
   res.setHeader('Content-Disposition', 'inline');
-  res.sendFile(path.join(paths.covers, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
+  res.sendFile(path.join(paths.covers, req.params.file), { cacheControl: false }, (err) => {
     if (err && !res.headersSent) res.sendStatus(404);
   });
 });
@@ -205,7 +208,7 @@ app.get('/logo/:file', (req, res) => {
 
 app.get('/bg/:file', artworkGuard, (req, res) => {
   if (!SAFE_FILE.test(req.params.file)) return res.sendStatus(404);
-  res.sendFile(path.join(paths.backgrounds, req.params.file), { maxAge: '30d', immutable: true }, (err) => {
+  res.sendFile(path.join(paths.backgrounds, req.params.file), { cacheControl: false }, (err) => {
     if (err && !res.headersSent) res.sendStatus(404);
   });
 });

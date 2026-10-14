@@ -31,12 +31,33 @@ command -v apache2ctl >/dev/null || die "Apache (apache2) not found on this serv
 # --- find the domain's Apache config file(s) --------------------------------------
 DOM_RE="${DOMAIN//./\\.}"
 mapfile -t VHOSTS < <(grep -liE "^\s*Server(Name|Alias)\s(.*\s)?(www\.)?${DOM_RE}(\s|:|$)" /etc/apache2/sites-enabled/* 2>/dev/null | xargs -r -n1 readlink -f | sort -u)
-[ "${#VHOSTS[@]}" -gt 0 ] || die "no enabled Apache site with ServerName $DOMAIN. Nothing was changed."
+ALL_BLOCKS=no
+if [ "${#VHOSTS[@]}" -eq 0 ]; then
+  # No site names the domain. On a one-site server the default site (000-default.conf) answers for it.
+  mapfile -t ENABLED < <(ls /etc/apache2/sites-enabled/* 2>/dev/null | xargs -r -n1 readlink -f | sort -u)
+  [ "${#ENABLED[@]}" -eq 1 ] || die "no enabled Apache site names $DOMAIN, and there are ${#ENABLED[@]} enabled sites, so I can't tell which one serves it. Nothing was changed."
+  echo "No Apache site names $DOMAIN, but there is exactly one enabled site: ${ENABLED[0]}"
+  echo "It answers for every domain pointed at this server, so /radio will work on all of them."
+  if [ "$MODE" != "--uninstall" ]; then
+    read -rp "Add the radio to that site? [y/N] " OK
+    [[ "$OK" =~ ^[Yy] ]] || die "cancelled. Nothing was changed."
+  fi
+  VHOSTS=("${ENABLED[0]}")
+  ALL_BLOCKS=yes
+fi
 HTTPS=no
 grep -qlE "<VirtualHost[^>]*:443" "${VHOSTS[@]}" && HTTPS=yes
 
+# Is the site behind Cloudflare? (Cloudflare then provides the HTTPS, and visitor IPs arrive via its proxies.)
+PUBLIC_HEADERS=$(curl -sI --max-time 10 "https://$DOMAIN/" 2>/dev/null || true)
+CLOUDFLARE=no
+grep -qi '^server: *cloudflare' <<<"$PUBLIC_HEADERS" && CLOUDFLARE=yes
+PUBLIC_HTTPS=$HTTPS
+[ -n "$PUBLIC_HEADERS" ] && PUBLIC_HTTPS=yes
+
 homepage() { curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$1://$DOMAIN/" --resolve "$DOMAIN:443:127.0.0.1" --resolve "$DOMAIN:80:127.0.0.1" || true; }
 SCHEME=http; [ "$HTTPS" = yes ] && SCHEME=https
+PUBLIC_SCHEME=http; [ "$PUBLIC_HTTPS" = yes ] && PUBLIC_SCHEME=https
 
 BACKUP="/root/radio-apache-backup-$(date +%Y%m%d-%H%M%S)"
 restore() {
@@ -100,8 +121,17 @@ fi
 setenv BASE_PATH /radio
 setenv HOST 127.0.0.1
 setenv PORT "$PORT"
-setenv TRUST_PROXY loopback
-setenv SECURE_COOKIES "$([ "$HTTPS" = yes ] && echo true || echo false)"
+setenv SECURE_COOKIES "$([ "$PUBLIC_HTTPS" = yes ] && echo true || echo false)"
+if [ "$CLOUDFLARE" = yes ]; then
+  # Trust Cloudflare's proxies so each listener is counted by their own IP (stream and like limits),
+  # not by the Cloudflare server they came through. Cloudflare's free plan also caps uploads at 100 MB.
+  CF_IPS=$( { curl -fsS --max-time 10 https://www.cloudflare.com/ips-v4; echo; curl -fsS --max-time 10 https://www.cloudflare.com/ips-v6; } | grep -E '^[0-9a-fA-F:.]+/[0-9]+$' | paste -sd, - || true)
+  [ -n "$CF_IPS" ] || die "couldn't download Cloudflare's IP list. Check the server's internet access and re-run."
+  setenv TRUST_PROXY "loopback,$CF_IPS"
+  setenv MAX_UPLOAD_MB 100
+else
+  setenv TRUST_PROXY loopback
+fi
 
 # --- 4. run it as a service ----------------------------------------------------------
 say "Starting the radio service"
@@ -131,9 +161,10 @@ for f in "${VHOSTS[@]}"; do
   cp -a "$f" "$BACKUP/"
   grep -qF "$INCLUDE" "$f" && continue
   # Add the Include before </VirtualHost> in this domain's block(s): only the :443 ones when HTTPS exists.
-  INC="    $INCLUDE" DOM="$DOMAIN" HTTPS="$HTTPS" awk '
+  # (ALL=yes: the single default site, which names no domain, so every block in it.)
+  INC="    $INCLUDE" DOM="$DOMAIN" HTTPS="$HTTPS" ALL="$ALL_BLOCKS" awk '
     function isdomain(w) { sub(/:[0-9]+$/, "", w); return w == ENVIRON["DOM"] || w == "www." ENVIRON["DOM"] }
-    /^[[:space:]]*<VirtualHost/ { inblk = 1; is443 = ($0 ~ /:443/); hit = 0 }
+    /^[[:space:]]*<VirtualHost/ { inblk = 1; is443 = ($0 ~ /:443/); hit = (ENVIRON["ALL"] == "yes") }
     inblk && /^[[:space:]]*<\/VirtualHost>/ {
       if (hit && (ENVIRON["HTTPS"] == "no" || is443)) print ENVIRON["INC"]
       print; inblk = 0; next
@@ -162,9 +193,13 @@ RADIO=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$SCHEME://$DOMAIN
 [ "$RADIO" = 200 ] || echo "Warning: $SCHEME://$DOMAIN/radio answered $RADIO. Check: journalctl -u radio-station -n 50"
 
 say "Done"
-echo "Main site:  $SCHEME://$DOMAIN/          (still answering $AFTER, same as before)"
-echo "Radio:      $SCHEME://$DOMAIN/radio/"
-echo "Admin:      $SCHEME://$DOMAIN/radio/admin"
+echo "Main site:  $PUBLIC_SCHEME://$DOMAIN/          (still answering $AFTER, same as before)"
+echo "Radio:      $PUBLIC_SCHEME://$DOMAIN/radio/"
+echo "Admin:      $PUBLIC_SCHEME://$DOMAIN/radio/admin"
 echo "Apache backup: $BACKUP"
 echo "Logs:       journalctl -u radio-station -f"
-[ "$HTTPS" = yes ] || echo "Note: $DOMAIN has no HTTPS site in Apache, so admin cookies are not marked Secure. Add HTTPS with certbot, then re-run this script."
+if [ "$CLOUDFLARE" = yes ]; then
+  echo "Cloudflare: detected. In the Cloudflare dashboard, turn on SSL/TLS > Edge Certificates > 'Always Use HTTPS'"
+  echo "            (admin login only works over https). Uploads are limited to 100 MB per file."
+fi
+[ "$PUBLIC_HTTPS" = yes ] || echo "Note: $DOMAIN isn't reachable over HTTPS, so admin cookies are not marked Secure. Add HTTPS, then re-run this script."

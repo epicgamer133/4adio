@@ -221,6 +221,12 @@ The owner wants the radio at **4tunat.com/radio** (inside the 4TUNAT portal) ins
 cookies use `Path=/radio`, so they never reach the rest of the site. Empty `BASE_PATH` = the old subdomain
 behavior, unchanged. Apache config: `deploy/apache-radio-subpath.conf`, pasted into the site's existing HTTPS
 vhost. Tested locally under /radio (listener, stream, events, artwork, admin login), 2026-10-14.
+**Cloudflare (4tunat.com is behind it, 2026-10-14):** the VPS Apache has only `000-default.conf` on port 80, and
+Cloudflare provides HTTPS. `deploy/setup-subpath.sh` handles this: it offers the single default site when no site
+names the domain, detects Cloudflare, sets `TRUST_PROXY=loopback,<Cloudflare ranges>` (otherwise every listener
+would share Cloudflare's IPs and hit `MAX_STREAMS_PER_IP`), `SECURE_COOKIES=true` and `MAX_UPLOAD_MB=100`
+(Cloudflare free plan limit). Guarded artwork (`/cover`, `/bg`) is sent `Cache-Control: private` so Cloudflare
+never caches it and bypasses the artwork guard. Re-run the script if Cloudflare's IP list changes.
 
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.
