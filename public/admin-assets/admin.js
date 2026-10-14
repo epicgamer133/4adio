@@ -37,6 +37,14 @@ function toast(msg, bad = false) {
   toastTimer = setTimeout(() => (t.hidden = true), 3200);
 }
 
+// Errors without a JSON message come from a proxy in front of the app (Apache, Cloudflare).
+function proxyError(code) {
+  if (code === 413) return 'File too large for the web server or Cloudflare (Cloudflare allows 100 MB).';
+  if (code === 524 || code === 504) return 'The server took too long to answer (proxy timeout). Try a shorter or smaller file.';
+  if (code === 502 || code === 503 || code === 521) return 'The radio server is not reachable right now. Is the service running?';
+  return `Request failed (${code})`;
+}
+
 async function api(method, url, body) {
   const opts = { method, headers: { 'X-Requested-With': 'radio-admin' }, credentials: 'same-origin' };
   if (body instanceof FormData) opts.body = body;
@@ -50,7 +58,7 @@ async function api(method, url, body) {
     showLogin();
     throw new Error('Session expired');
   }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(data.error || proxyError(res.status));
   return data;
 }
 
@@ -514,8 +522,8 @@ function pumpUploads() {
     } else {
       job.row.classList.add('fail');
       job.state.textContent = 'Failed';
-      job.state.title = data.error || `HTTP ${xhr.status}`;
-      toast(`${job.file.name}: ${data.error || 'Upload failed'}`, true);
+      job.state.title = data.error || proxyError(xhr.status);
+      toast(`${job.file.name}: ${data.error || proxyError(xhr.status)}`, true);
     }
     uploading = false;
     pumpUploads();
@@ -703,11 +711,26 @@ $('settingsForm').addEventListener('submit', async (e) => {
 $('bgInput').addEventListener('change', async () => {
   const file = $('bgInput').files[0];
   if (!file) return;
+  const maxMb = status?.maxUploadMb;
+  if (maxMb && file.size > maxMb * 1024 * 1024) {
+    $('bgInput').value = '';
+    return toast(`That file is ${Math.ceil(file.size / 1048576)} MB. The limit is ${maxMb} MB: trim or compress it first.`, true);
+  }
   const fd = new FormData();
   fd.append('background', file);
-  $('bgStatus').textContent = 'Processing...';
+  $('bgStatus').textContent = 'Uploading...';
   try {
-    await api('POST', '/settings/background', fd);
+    const r = await api('POST', '/settings/background', fd);
+    if (r.processing) {
+      // Videos convert on the server after the upload; check back until it's done.
+      $('bgStatus').textContent = 'Converting video... (this can take a few minutes)';
+      for (;;) {
+        await new Promise((ok) => setTimeout(ok, 3000));
+        const job = await api('GET', '/settings/background/status');
+        if (job.state === 'error') throw new Error(job.error);
+        if (job.state !== 'processing') break;
+      }
+    }
     $('bgStatus').textContent = '';
     toast('Background updated');
     loadSettings();

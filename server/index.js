@@ -287,7 +287,7 @@ function parseJsonField(value) {
   }
 }
 
-admin.get('/status', (req, res) => res.json(station.adminState()));
+admin.get('/status', (req, res) => res.json({ ...station.adminState(), maxUploadMb: config.maxUploadMb }));
 
 admin.get('/tracks', (req, res) => {
   res.json(
@@ -522,29 +522,60 @@ admin.delete('/queue/:requestId', (req, res) => {
 admin.get('/settings', (req, res) => res.json(library.settings));
 admin.patch('/settings', (req, res) => res.json(library.updateSettings(req.body || {})));
 
+// Background video conversion runs after the upload request has been answered.
+let bgJob = { state: 'idle', error: null };
+
 admin.post('/settings/background', upload.single('background'), async (req, res) => {
   const f = req.file;
   if (!f || !(IMAGE_EXT.test(f.originalname) || VIDEO_EXT.test(f.originalname))) {
     cleanupFiles(req);
     return res.status(400).json({ error: 'Pick an image or video file.' });
   }
+  if (bgJob.state === 'processing') {
+    cleanupFiles(req);
+    return res.status(409).json({ error: 'A background video is still converting. Try again when it is done.' });
+  }
+  let info;
   try {
-    const info = await probe(f.path);
-    const isVideo = info.hasVideo && VIDEO_EXT.test(f.originalname);
-    const file = `${newId()}.${isVideo ? 'mp4' : 'jpg'}`;
-    const out = path.join(paths.backgrounds, file);
-    if (isVideo) await makeBackgroundVideo(f.path, out);
-    else await makeJpeg(f.path, out, 2560);
+    info = await probe(f.path);
+  } catch (err) {
+    cleanupFiles(req);
+    return res.status(400).json({ error: `Could not process that file: ${err.message}` });
+  }
+  const isVideo = info.hasVideo && VIDEO_EXT.test(f.originalname);
+  const file = `${newId()}.${isVideo ? 'mp4' : 'jpg'}`;
+  const out = path.join(paths.backgrounds, file);
+  const apply = () => {
     const old = library.settings.background;
     library.updateSettings({ background: { file, type: isVideo ? 'video' : 'image', rev: Date.now() } });
     if (old?.file) fs.rm(path.join(paths.backgrounds, old.file), { force: true }, () => {});
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(400).json({ error: `Could not process that file: ${err.message}` });
-  } finally {
-    cleanupFiles(req);
+  };
+  if (!isVideo) {
+    try {
+      await makeJpeg(f.path, out, 2560);
+      apply();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ error: `Could not process that file: ${err.message}` });
+    } finally {
+      cleanupFiles(req);
+    }
+    return;
   }
+  // Video conversion can take minutes on a small server, longer than proxies like
+  // Cloudflare wait for an answer (100 s). Reply now; the admin page polls the status.
+  bgJob = { state: 'processing', error: null };
+  res.status(202).json({ ok: true, processing: true });
+  makeBackgroundVideo(f.path, out)
+    .then(() => { apply(); bgJob = { state: 'idle', error: null }; })
+    .catch((err) => {
+      fs.rm(out, { force: true }, () => {});
+      bgJob = { state: 'error', error: `Could not convert that video: ${err.message}` };
+    })
+    .finally(() => cleanupFiles(req));
 });
+
+admin.get('/settings/background/status', (req, res) => res.json(bgJob));
 
 admin.post('/settings/logo', upload.single('logo'), async (req, res) => {
   const f = req.file;
