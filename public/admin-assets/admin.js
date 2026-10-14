@@ -44,7 +44,7 @@ async function api(method, url, body) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(`/api/admin${url}`, opts);
+  const res = await fetch(`api/admin${url}`, opts);
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && url !== '/login') {
     showLogin();
@@ -494,7 +494,7 @@ function pumpUploads() {
   fd.append('audio', job.file);
   if (job.albumId) fd.append('albumId', job.albumId);
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/admin/tracks');
+  xhr.open('POST', 'api/admin/tracks');
   xhr.setRequestHeader('X-Requested-With', 'radio-admin');
   xhr.upload.onprogress = (e) => {
     if (e.lengthComputable) {
@@ -636,7 +636,7 @@ $('editDialog').addEventListener('close', async () => {
 function renderBgPreview(bg) {
   const box = $('bgPreview');
   if (!bg) return box.replaceChildren(document.createTextNode('No custom background. The visualizer and cover art fill the screen.'));
-  const url = `/bg/${bg.file}?v=${bg.rev}`;
+  const url = `bg/${bg.file}?v=${bg.rev}`;
   if (bg.type === 'video') {
     const v = el('video', { src: url, autoplay: true, loop: true, playsinline: true });
     v.muted = true;
@@ -668,7 +668,7 @@ async function loadSettings() {
     : s.socials.discord ? 'Leads with your Discord link.' : 'No Discord link yet, so it leads with your first social link.';
   renderBgPreview(s.background);
   $('logoPreview').replaceChildren(
-    s.logo ? el('img', { src: `/logo/${s.logo.file}?v=${s.logo.rev}`, alt: 'Current logo' }) : document.createTextNode('No logo yet'),
+    s.logo ? el('img', { src: `logo/${s.logo.file}?v=${s.logo.rev}`, alt: 'Current logo' }) : document.createTextNode('No logo yet'),
   );
   $('logoRemove').disabled = !s.logo;
   $('bgRemove').disabled = !s.background;

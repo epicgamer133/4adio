@@ -29,12 +29,22 @@ function normalizeAdminPath(p) {
   return /^\/[A-Za-z0-9_-]+$/.test(clean) ? clean : '/admin';
 }
 
+// Optional URL prefix when the radio shares a domain, e.g. BASE_PATH=/radio for
+// example.com/radio. Empty = the radio is the whole site (its own subdomain).
+function normalizeBasePath(p) {
+  const clean = String(p || '').replace(/^\/+|\/+$/g, '');
+  if (!clean) return '';
+  if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/.test(clean)) throw new Error(`Invalid BASE_PATH: ${p}`);
+  return '/' + clean;
+}
+
 export const config = {
   host: env.HOST || '127.0.0.1',
   port: Number(env.PORT || 8090),
   dataDir: path.resolve(ROOT, env.DATA_DIR || 'data'),
   publicDir: path.join(ROOT, 'public'),
   adminPassword: env.ADMIN_PASSWORD || '',
+  basePath: normalizeBasePath(env.BASE_PATH),
   adminPath: normalizeAdminPath(env.ADMIN_PATH),
   ffmpeg: env.FFMPEG_PATH || 'ffmpeg',
   ffprobe: env.FFPROBE_PATH || 'ffprobe',

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { paths } from './config.js';
+import { config, paths } from './config.js';
 
 export const LINK_KEYS = ['spotify', 'appleMusic', 'youtube', 'soundcloud', 'bandcamp', 'tidal', 'deezer', 'other'];
 export const SOCIAL_KEYS = ['instagram', 'x', 'tiktok', 'youtube', 'spotify', 'soundcloud', 'facebook', 'twitch', 'discord', 'website'];
@@ -189,7 +189,7 @@ class Library extends EventEmitter {
       id: album.id,
       title: album.title,
       artist: album.artist,
-      cover: album.coverFile ? `/cover/${album.coverFile}?v=${album.coverRev || 0}` : null,
+      cover: album.coverFile ? `${config.basePath}/cover/${album.coverFile}?v=${album.coverRev || 0}` : null,
       trackCount: this.albumTrackCount(album.id),
       createdAt: album.createdAt,
     };
@@ -299,8 +299,8 @@ class Library extends EventEmitter {
     // Priority: artwork uploaded by hand for this one song > album artwork >
     // the cover embedded in the song file.
     const album = this.getAlbum(track.albumId);
-    const own = track.coverFile ? `/cover/${track.coverFile}?v=${track.coverRev || 0}` : null;
-    const albumCover = album?.coverFile ? `/cover/${album.coverFile}?v=${album.coverRev || 0}` : null;
+    const own = track.coverFile ? `${config.basePath}/cover/${track.coverFile}?v=${track.coverRev || 0}` : null;
+    const albumCover = album?.coverFile ? `${config.basePath}/cover/${album.coverFile}?v=${album.coverRev || 0}` : null;
     const cover = (track.coverCustom && own) || albumCover || own;
     return {
       id: track.id,
@@ -320,8 +320,8 @@ class Library extends EventEmitter {
       tagline: s.tagline,
       accent: s.accent,
       backgroundOpacity: s.backgroundOpacity,
-      background: s.background ? { url: `/bg/${s.background.file}?v=${s.background.rev}`, type: s.background.type } : null,
-      logo: s.logo ? `/logo/${s.logo.file}?v=${s.logo.rev}` : null,
+      background: s.background ? { url: `${config.basePath}/bg/${s.background.file}?v=${s.background.rev}`, type: s.background.type } : null,
+      logo: s.logo ? `${config.basePath}/logo/${s.logo.file}?v=${s.logo.rev}` : null,
       socials: s.socials,
       reminder: { ...DEFAULT_SETTINGS.reminder, ...s.reminder },
       // Older settings files only had one accent color; carry it into the theme.

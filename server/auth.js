@@ -21,7 +21,7 @@ function parseCookies(header = '') {
 function cookie(value, maxAgeSec) {
   return [
     `${COOKIE}=${value}`,
-    'Path=/',
+    `Path=${config.basePath || '/'}`,
     'HttpOnly',
     'SameSite=Strict',
     `Max-Age=${maxAgeSec}`,

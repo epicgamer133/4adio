@@ -31,8 +31,8 @@ What the owner asked for:
 An earlier version was built with a lower-quality AI model. This project is a **clean rebuild of
 the same concept** with a stronger architecture. Nothing from the old code was carried over, by choice.
 
-It is **standalone**: separate from the 4TUNAT website, and meant to run on its own subdomain
-(e.g. `radio.yourdomain.com`). It can be embedded into 4TUNAT later with an iframe.
+It is **standalone**: separate from the 4TUNAT website, and can run on its own subdomain
+(e.g. `radio.yourdomain.com`) or in a subfolder like `4tunat.com/radio` (Decision 17, the current plan). It can be embedded into 4TUNAT later with an iframe.
 
 ---
 
@@ -212,6 +212,15 @@ Admin → Station → Theme. `settings.theme = { mode, accent, accent2, accent3,
   settings over SSE, and every listener restyles without a reload. Presets: 4TUNAT Purple (default), Sunset,
   Ocean, Toxic, Blood Moon, Mono. The admin UI also adopts the accent. The old single `accent` setting is
   folded into `theme.accent`. Owner's request, 2026-10-12.
+
+### Decision 17: optional subfolder hosting (`BASE_PATH`)
+The owner wants the radio at **4tunat.com/radio** (inside the 4TUNAT portal) instead of a subdomain.
+`BASE_PATH=/radio` mounts the whole app under that prefix. Pages use relative URLs (`css/…`, `stream`,
+`api/…`), so the listener page must load as `/radio/` and the admin as `/radio/admin` (the server redirects
+`/radio` and `/radio/admin/` to those). Server-built URLs (covers, backgrounds, logo) get the prefix, and both
+cookies use `Path=/radio`, so they never reach the rest of the site. Empty `BASE_PATH` = the old subdomain
+behavior, unchanged. Apache config: `deploy/apache-radio-subpath.conf`, pasted into the site's existing HTTPS
+vhost. Tested locally under /radio (listener, stream, events, artwork, admin login), 2026-10-14.
 
 ### Stack (deliberately small)
 - Node.js 20+ with express, multer, and simple-icons (brand icons served locally). ffmpeg/ffprobe for media.

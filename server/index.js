@@ -100,7 +100,7 @@ function listenerId(req, res) {
   const m = /(?:^|;\s*)rs_lid=([A-Za-z0-9_-]{16,64})/.exec(req.headers.cookie || '');
   if (m) return m[1];
   const id = crypto.randomBytes(18).toString('base64url');
-  res.append('Set-Cookie', `rs_lid=${id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${config.secureCookies ? '; Secure' : ''}`);
+  res.append('Set-Cookie', `rs_lid=${id}; Path=${config.basePath || '/'}; HttpOnly; SameSite=Lax; Max-Age=31536000${config.secureCookies ? '; Secure' : ''}`);
   return id;
 }
 
@@ -234,6 +234,8 @@ app.get('/icons/:key.svg', (req, res) => {
 // The admin page lives outside public/ so it is only reachable at ADMIN_PATH.
 // (Its script and styles are in public/admin-assets; they hold no secrets.)
 app.get(config.adminPath, (req, res) => {
+  // Pages use relative URLs, so the admin page must load without a trailing slash.
+  if (req.path.endsWith('/')) return res.redirect(301, config.basePath + config.adminPath);
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.sendFile(path.join(ROOT, 'views', 'admin.html'));
@@ -593,9 +595,26 @@ if (!config.adminPassword) console.warn('[admin] ADMIN_PASSWORD is not set. Admi
 checkFfmpeg();
 station.start();
 
-const server = app.listen(config.port, config.host, () => {
-  console.log(`[radio] "${library.settings.stationName}" on http://${config.host}:${config.port}`);
-  console.log(`[radio] admin panel at ${config.adminPath}  |  ${library.playable().length} playable tracks`);
+// With BASE_PATH the whole app is mounted under that prefix. The listener page
+// needs its trailing slash (example.com/radio/) for its relative URLs to resolve.
+let root = app;
+if (config.basePath) {
+  root = express();
+  root.disable('x-powered-by');
+  root.set('trust proxy', config.trustProxy);
+  root.use((req, res, next) => {
+    const q = req.originalUrl.indexOf('?');
+    const pathname = q === -1 ? req.originalUrl : req.originalUrl.slice(0, q);
+    const query = q === -1 ? '' : req.originalUrl.slice(q);
+    if (pathname === config.basePath) return res.redirect(301, `${config.basePath}/${query}`);
+    next();
+  });
+  root.use(config.basePath, app);
+}
+
+const server = root.listen(config.port, config.host, () => {
+  console.log(`[radio] "${library.settings.stationName}" on http://${config.host}:${config.port}${config.basePath}/`);
+  console.log(`[radio] admin panel at ${config.basePath}${config.adminPath}  |  ${library.playable().length} playable tracks`);
 });
 server.keepAliveTimeout = 65_000;
 server.requestTimeout = 0; // the stream and event connections are meant to stay open

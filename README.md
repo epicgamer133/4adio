@@ -27,7 +27,7 @@ visitor ──https──> your existing nginx/Apache ──> 127.0.0.1:8090 (th
 - The app runs as its own process on **localhost:8090**. It cannot be reached from outside except through the proxy.
 - You add **one new** server block (nginx) or virtual host (Apache) for a subdomain like `radio.yourdomain.com`. Your existing sites and config files stay untouched.
 - Everything the app writes stays inside its own folder (`data/`).
-- It must run at the **root of a subdomain**, not in a subfolder like `yoursite.com/radio`.
+- It runs on its own subdomain by default. To put it in a subfolder of an existing site instead (like `yoursite.com/radio`), set `BASE_PATH=/radio` in `.env` and use `deploy/apache-radio-subpath.conf`. See [INSTALL.md](INSTALL.md#in-a-subfolder-instead-yourdomaincomradio).
 
 **Requirements:** a VPS or dedicated server with shell access. Shared/cPanel hosting can't run a 24/7 stream process, so this won't work there.
 

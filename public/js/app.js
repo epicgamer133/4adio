@@ -36,7 +36,7 @@ function brandIcon(key, label) {
     span.innerHTML = GENERIC_ICONS[key]; // static markup, not user data
     return span.firstChild;
   }
-  const img = el('img', { src: `/icons/${key}.svg`, alt: '', loading: 'lazy' });
+  const img = el('img', { src: `icons/${key}.svg`, alt: '', loading: 'lazy' });
   img.addEventListener('error', () => img.replaceWith(el('span', { class: 'mono', text: label[0] })));
   return img;
 }
@@ -242,7 +242,7 @@ function connectStream() {
   S.lat = S.server?.burstSeconds ?? 2;
   S.stuckFor = 0;
   S.flatFor = 0;
-  audio.src = `/stream?_=${Date.now()}`;
+  audio.src = `stream?_=${Date.now()}`;
   audio.play().catch((err) => {
     if (err.name === 'NotAllowedError') {
       stopListening();
@@ -652,9 +652,9 @@ $('favBtn').addEventListener('click', () => toggleFav(S.shown, $('favBtn')));
 // lives here, and the next page load re-syncs.
 const FAV_HEADERS = { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' };
 function reportFavorite(trackId, on) {
-  fetch('/api/favorite', { method: 'POST', credentials: 'same-origin', headers: FAV_HEADERS, body: JSON.stringify({ trackId, on }) }).catch(() => {});
+  fetch('api/favorite', { method: 'POST', credentials: 'same-origin', headers: FAV_HEADERS, body: JSON.stringify({ trackId, on }) }).catch(() => {});
 }
-fetch('/api/favorites/sync', {
+fetch('api/favorites/sync', {
   method: 'POST',
   credentials: 'same-origin',
   headers: FAV_HEADERS,
@@ -675,7 +675,7 @@ async function refreshFavorites() {
   if (favorites.length) {
     try {
       const ids = favorites.map((f) => f.id).join(',');
-      const list = await (await fetch(`/api/tracks?ids=${encodeURIComponent(ids)}`)).json();
+      const list = await (await fetch(`api/tracks?ids=${encodeURIComponent(ids)}`)).json();
       const found = new Map(list.map((t) => [t.id, t]));
       for (const f of favorites) {
         const t = found.get(f.id);
@@ -861,7 +861,7 @@ async function sendTaps() {
   for (const b of batches) {
     ownEcho += b.taps;
     try {
-      const res = await fetch('/api/like', {
+      const res = await fetch('api/like', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'radio' },
@@ -1218,7 +1218,7 @@ setInterval(() => {
 
 // --- live events ----------------------------------------------------------------------------
 function connectEvents() {
-  const es = new EventSource('/events');
+  const es = new EventSource('events');
   es.addEventListener('state', (e) => {
     const st = JSON.parse(e.data);
     addClockSample(st.serverTime);

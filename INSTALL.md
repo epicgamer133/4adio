@@ -44,6 +44,19 @@ sudo certbot --apache -d radio.yourdomain.com
 
 Then set `SECURE_COOKIES=true` in `.env` and run `sudo systemctl restart radio-station`.
 
+## In a subfolder instead (`yourdomain.com/radio`)
+
+Use this instead of all the steps above when the radio should live inside a site that already runs on the server. One script does everything:
+
+```bash
+sudo git clone https://github.com/epicgamer133/4adio.git /opt/radio-station
+sudo bash /opt/radio-station/deploy/setup-subpath.sh yourdomain.com
+```
+
+It asks for an admin password once, then installs the radio as a service and adds a single `Include` line to that domain's Apache site (backed up first). If the Apache config test fails, or the homepage answers differently afterwards, it restores the backup on its own. Re-run the same command to update. Undo: add `--uninstall` to the end.
+
+Listen at `https://yourdomain.com/radio/`, admin at `https://yourdomain.com/radio/admin`. Doing it by hand instead: set `BASE_PATH=/radio` in `.env` and paste `deploy/apache-radio-subpath.conf` into the site's HTTPS virtual host.
+
 ## Done
 
 - Listen: `https://radio.yourdomain.com`
